@@ -28,7 +28,7 @@ const PatientDashboard = () => {
 
   const getStreakCount = () => {
     let streak = 0;
-    let currentDate = new Date(today);
+    const currentDate = new Date(today);
     
     while (takenDates.has(format(currentDate, 'yyyy-MM-dd')) && streak < 30) {
       streak++;
