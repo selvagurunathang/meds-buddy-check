@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import Onboarding from "@/components/Onboarding";
 import PatientDashboard from "@/components/PatientDashboard";
@@ -41,9 +40,9 @@ const Index = () => {
               </p>
             </div>
           </div>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             onClick={switchUserType}
             className="flex items-center gap-2 hover:bg-accent transition-colors"
           >
@@ -53,8 +52,15 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-6">
-        {userType === "patient" ? <PatientDashboard /> : <CaretakerDashboard />}
+      <main className="max-w-6xl mx-auto p-6 space-y-6">
+        {userType === "patient" ? (
+          <>
+            <PatientDashboard />
+            {/* Future: Add medication logs / charts / reminders here */}
+          </>
+        ) : (
+          <CaretakerDashboard />
+        )}
       </main>
     </div>
   );
