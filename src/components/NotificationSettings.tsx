@@ -18,7 +18,7 @@ const NotificationSettings = () => {
     missedMedNotification: true,
     missedMedDelay: "2" // hours
   });
-  const handleSettingChange = (key: string, value: any) => {
+  const handleSettingChange = (key: string, value) => {
     setSettings(prev => ({
       ...prev,
       [key]: value
