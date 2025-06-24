@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
@@ -7,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Calendar as CalendarIcon, Image, User } from "lucide-react";
 import MedicationTracker from "./MedicationTracker";
 import { format, isToday, isBefore, startOfDay } from "date-fns";
+import { supabase } from "@/lib/supabase";
 
 const PatientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -18,8 +19,85 @@ const PatientDashboard = () => {
   const isTodaySelected = isToday(selectedDate);
   const isSelectedDateTaken = takenDates.has(selectedDateStr);
 
-  const handleMarkTaken = (date: string, imageFile?: File) => {
-    setTakenDates(prev => new Set(prev).add(date));
+  // Fetch medication taken data from database
+  const fetchMedicationsTaken = async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setTakenDates(new Set());
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("medications_taken")
+        .select("date")
+        .eq("user_id", user.id)
+        .order("date", { ascending: false });
+
+      if (error) {
+        console.error('Error fetching medications taken:', error);
+        setTakenDates(new Set());
+      } else if (data) {
+        // Convert array of dates to Set for efficient lookup
+        const datesSet = new Set(data.map(record => record.date));
+        setTakenDates(datesSet);
+        console.log('Fetched taken dates:', datesSet);
+      }
+    } catch (catchError) {
+      console.error('Unexpected error fetching medications taken:', catchError);
+      setTakenDates(new Set());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchMedicationsTaken();
+  }, []);
+
+  // Real-time subscription for medication taken updates
+  useEffect(() => {
+    const setupSubscription = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const channel = supabase
+        .channel(`patient-dashboard-${user.id}`)
+        .on(
+          'postgres_changes',
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'medications_taken',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Real-time medication taken update received:', payload);
+            // Refresh the data when medication taken records change
+            fetchMedicationsTaken();
+          }
+        )
+        .subscribe((status) => {
+          console.log('Patient dashboard subscription status:', status);
+        });
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    const cleanup = setupSubscription();
+    return () => {
+      cleanup.then(cleanupFn => cleanupFn?.());
+    };
+  }, []);
+
+  const handleMarkTaken = async (date: string, imageFile?: File) => {
+    // Refresh the data from database after marking as taken
+    await fetchMedicationsTaken();
     console.log('Medication marked as taken for:', date);
     if (imageFile) {
       console.log('Proof image uploaded:', imageFile.name);
@@ -62,6 +140,7 @@ const PatientDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
+     
       <div className="bg-gradient-to-r from-blue-500 to-green-500 rounded-2xl p-8 text-white">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">

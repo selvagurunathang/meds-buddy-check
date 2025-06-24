@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, User, Heart } from "lucide-react";
@@ -9,7 +8,7 @@ interface OnboardingProps {
 
 const Onboarding = ({ onComplete }: OnboardingProps) => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center p-6">
+    <div className="flex items-center justify-center p-6 pt-20">
       <div className="max-w-4xl w-full">
         <div className="text-center mb-12">
           <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-green-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
