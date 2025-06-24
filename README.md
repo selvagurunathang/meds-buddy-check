@@ -1,77 +1,129 @@
-# MediCare App - 4-6 Hour Assessment
-
-## Live Demo (UI only): https://meds-buddy-check.lovable.app/
-
-## Current State of the codebase
-
-This is a React medication management app with dual user roles (patients/caretakers). Currently features:
-
-- Role-based dashboard system for each user account with runtime switching (for simplcity)
-
-- UI for medication tracking with calendar visualization
-
-- Mock data for streaks, adherence rates, and medication logs
-
-- Photo upload interface for medication proof
-
-- Notification settings UI (non-functional)
-
-- All data is stored in local state (no persistence)
 
 
-## Core Implementation Tasks
+---
 
-### Phase 1 (Required - 4 hours):
-- Supabase authentication setup
-- Basic CRUD for adding medications
-- Basic CRUD for marking medication taken for the day
-- Connect one dashboard to real data
+# MediCare Companion
 
-### Phase 2 (Optional - 2 hours):
-- Caretaker-patient real time updates
-- Basic adherence tracking
+A modern medication management app for patients and caretakers, built with **React**, **TypeScript**, **Tailwind CSS**, and **Supabase**.
 
-### Phase 3 (Bonus):
-- File uploads
+---
 
-**Provided:**
-- UI components and styles
+## ✨ Features Implemented
 
-## Required Features:
-1. User login/signup with Supabase Auth
-2. Add medications (name, dosage, frequency)
-3. View medication list
-4. Mark medication as taken today
-5. Simple adherence percentage display
+- **User Authentication:**  
+  - Sign up, login, and password reset using Supabase Auth (email/password)
+  - Session management and auto-logout for security
 
-## Technical Requirements:
-- Use provided React + TypeScript template
-- Integrate Supabase for auth and database
-- Use React Query for data fetching
-- Implement error handling
-- Clean, readable code
+- **Medication Management (CRUD):**  
+  - Add new medications (name, dosage, frequency, time, description)
+  - View a personalized medication list
+  - Edit and delete medications
+  - Mark medications as taken for today (with optional photo proof)
+  - Real-time updates for medication and taken status
 
-## Other Requirements:
-- Use Git with meaningful commits
-- Implement proper form validation
-- Handle loading and error states consistently
-- Write at least 2-3 meaningful tests using vitest
-- Include a README with setup instructions
+- **Adherence Tracking:**  
+  - Simple adherence percentage display
+  - Calendar visualization of medication history
 
-## Technical Challenges:
+- **Role-based Dashboards:**  
+  - Separate dashboards for patients and caretakers
+  - Runtime role switching
 
-**Include:**
-- Optimistic updates using react query
-- Proper TypeScript generics usage
+- **Form Validation:**  
+  - All forms validated with Zod and React Hook Form
+  - User-friendly error messages
 
-## Deployment Bonus:
-Deploy to Vercel/Netlify
+- **UI/UX:**  
+  - Responsive, accessible UI with reusable components
+  - Loading and error states handled throughout
+  - Notification and toast system for feedback
 
-## We will evaluate:
-- Code organization and architecture decisions
-- Error handling and edge cases
-- TypeScript usage (proper typing, no `any`)
-- Component composition and reusability
-- State management approach
-- Performance considerations (unnecessary re-renders)
-- Security awareness (input sanitization)
+---
+
+## 🛠️ Supabase Integration
+
+### 1. **Authentication**
+- Uses [Supabase Auth](https://supabase.com/docs/guides/auth) for secure user sign up, login, and password reset.
+- Session state is managed in the app, with auto-logout after inactivity.
+
+### 2. **Database (CRUD Operations)**
+- Medications and medication logs are stored in Supabase Postgres tables.
+- All CRUD operations (Create, Read, Update, Delete) for medications are performed using the Supabase client.
+- Real-time updates are enabled using Supabase’s real-time subscriptions, so changes are reflected instantly in the UI.
+
+**Example Supabase usage:**
+```ts
+// src/lib/supabase.ts
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+```
+
+---
+
+## 🚀 Getting Started
+
+1. **Clone the repo:**
+   ```bash
+   git clone https://github.com/YOUR-USERNAME/meds-buddy-check.git
+   cd meds-buddy-check
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   # or
+   bun install
+   ```
+
+3. **Set up environment variables:**
+   Create a `.env` file:
+   ```
+   VITE_SUPABASE_URL=your-supabase-url
+   VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+   (Do not commit this file!)
+
+4. **Run the app:**
+   ```bash
+   npm run dev
+   # or
+   bun run dev
+   ```
+
+---
+
+## 🏗️ Project Structure
+
+```
+src/
+  components/         # Feature and UI components
+  hooks/              # Custom React hooks
+  lib/                # Supabase client, utilities, validation schemas
+  pages/              # Main app pages (routing targets)
+  App.tsx             # App root
+  main.tsx            # Entry point
+public/               # Static assets
+```
+
+---
+
+## 📝 Notes
+
+- All authentication and database operations are handled via Supabase.
+- No secrets are committed; all keys are loaded from environment variables.
+- The app is ready for deployment on Netlify or Vercel—just set your environment variables in the deployment dashboard.
+
+---
+
+## 📚 Learn More
+
+- [Supabase Documentation](https://supabase.com/docs)
+- [React Documentation](https://react.dev/)
+- [Tailwind CSS Documentation](https://tailwindcss.com/)
+
+---
+

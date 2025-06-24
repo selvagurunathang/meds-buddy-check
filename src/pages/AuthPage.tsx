@@ -1,29 +1,23 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import Header from "@/components/Header";
+import Auth from "@/components/Auth";
 import { Heart } from "lucide-react";
 import { auth } from "@/lib/supabase";
 
-const Index = () => {
+const AuthPage = () => {
   const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing user session on component mount
   useEffect(() => {
     const checkUser = async () => {
       try {
         const { user } = await auth.getCurrentUser();
         if (user) {
           setCurrentUser(user);
-          // Check if user has completed onboarding
-          const userType = localStorage.getItem("userType");
-          if (userType) {
-            // User has completed onboarding, go to dashboard
-            navigate("/dashboard", { replace: true });
-          } else {
-            // User needs to complete onboarding
-            navigate("/onboarding", { replace: true });
-          }
+          // If user is already authenticated, redirect to onboarding
+          navigate("/onboarding", { replace: true });
         }
       } catch (error) {
         console.error("Error checking user:", error);
@@ -34,20 +28,26 @@ const Index = () => {
 
     checkUser();
 
-    // Listen for auth state changes
     const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setCurrentUser(session.user);
         navigate("/onboarding", { replace: true });
-      } else if (event === 'SIGNED_OUT') {
-        setCurrentUser(null);
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  // Loading Screen
+  const handleAuthSuccess = (user: any) => {
+    setCurrentUser(user);
+    navigate("/onboarding", { replace: true });
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    navigate("/", { replace: true });
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
@@ -62,32 +62,20 @@ const Index = () => {
     );
   }
 
-  // Welcome Screen (if not authenticated)
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+      <Header 
+        user={currentUser}
+        onAuthSuccess={handleAuthSuccess}
+      />
       <div className="flex items-center justify-center min-h-screen p-6">
-        <div className="text-center max-w-md">
-          <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-green-500 rounded-3xl flex items-center justify-center mx-auto mb-8">
-            <Heart className="w-12 h-12 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-foreground mb-4">
-            Welcome to MediCare Companion
-          </h1>
-          <p className="text-lg text-muted-foreground mb-8">
-            Your trusted partner in medication management. Please sign in or create an account to get started.
-          </p>
-          <div className="space-y-4">
-            <button
-              onClick={() => navigate("/auth")}
-              className="w-full bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 text-white py-3 px-6 rounded-lg text-lg font-medium transition-all duration-200 hover:shadow-md"
-            >
-              Get Started
-            </button>
-          </div>
-        </div>
+        <Auth
+          onClose={() => navigate("/")}
+          onAuthSuccess={handleAuthSuccess}
+        />
       </div>
     </div>
   );
 };
 
-export default Index;
+export default AuthPage; 

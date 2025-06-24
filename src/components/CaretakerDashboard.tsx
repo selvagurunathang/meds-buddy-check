@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,35 +8,145 @@ import { Calendar } from "@/components/ui/calendar";
 import { Users, Bell, Calendar as CalendarIcon, Mail, AlertTriangle, Check, Clock, Camera } from "lucide-react";
 import NotificationSettings from "./NotificationSettings";
 import { format, subDays, isToday, isBefore, startOfDay } from "date-fns";
+import { supabase } from "@/lib/supabase";
 
 const CaretakerDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [patientName, setPatientName] = useState("Patient");
 
-  // Mock data for demonstration
-  const patientName = "Eleanor Thompson";
-  const adherenceRate = 85;
-  const currentStreak = 5;
-  const missedDoses = 3;
+  // Fetch medication taken data from database
+  const fetchMedicationsTaken = async () => {
+    setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setTakenDates(new Set());
+      setLoading(false);
+      return;
+    }
 
-  // Mock data for taken medications (same as in PatientDashboard)
-  const takenDates = new Set([
-    "2024-06-10", "2024-06-09", "2024-06-07", "2024-06-06", 
-    "2024-06-05", "2024-06-04", "2024-06-02", "2024-06-01"
-  ]);
+    try {
+      const { data, error } = await supabase
+        .from("medications_taken")
+        .select(`
+          date,
+          taken_at,
+          image_url,
+          medications(name)
+        `)
+        .eq("user_id", user.id)
+        .order("taken_at", { ascending: false });
 
-  const recentActivity = [
-    { date: "2024-06-10", taken: true, time: "8:30 AM", hasPhoto: true },
-    { date: "2024-06-09", taken: true, time: "8:15 AM", hasPhoto: false },
-    { date: "2024-06-08", taken: false, time: null, hasPhoto: false },
-    { date: "2024-06-07", taken: true, time: "8:45 AM", hasPhoto: true },
-    { date: "2024-06-06", taken: true, time: "8:20 AM", hasPhoto: false },
-  ];
+      if (error) {
+        console.error('Error fetching medications taken:', error);
+        setTakenDates(new Set());
+        setRecentActivity([]);
+      } else if (data) {
+        // Convert array of dates to Set for efficient lookup
+        const datesSet = new Set(data.map(record => record.date));
+        setTakenDates(datesSet);
+        
+        // Create recent activity from the data
+        const activity = data.slice(0, 10).map(record => ({
+          date: record.date,
+          taken: true,
+          time: format(new Date(record.taken_at), 'h:mm a'),
+          hasPhoto: !!record.image_url,
+          medicationName: record.medications?.name || 'Medication'
+        }));
+        setRecentActivity(activity);
+        
+        console.log('Fetched taken dates:', datesSet);
+        console.log('Recent activity:', activity);
+      }
+    } catch (catchError) {
+      console.error('Unexpected error fetching medications taken:', catchError);
+      setTakenDates(new Set());
+      setRecentActivity([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchMedicationsTaken();
+  }, []);
+
+  // Real-time subscription for medication taken updates
+  useEffect(() => {
+    const setupSubscription = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const channel = supabase
+        .channel(`caretaker-dashboard-${user.id}`)
+        .on(
+          'postgres_changes',
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'medications_taken',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Real-time medication taken update received:', payload);
+            // Refresh the data when medication taken records change
+            fetchMedicationsTaken();
+          }
+        )
+        .subscribe((status) => {
+          console.log('Caretaker dashboard subscription status:', status);
+        });
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    const cleanup = setupSubscription();
+    return () => {
+      cleanup.then(cleanupFn => cleanupFn?.());
+    };
+  }, []);
+
+  // Calculate statistics
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+  const isTodayTaken = takenDates.has(todayStr);
+  
+  // Calculate adherence rate (last 30 days)
+  const thirtyDaysAgo = subDays(today, 30);
+  const takenInLast30Days = Array.from(takenDates).filter(date => {
+    const dateObj = new Date(date);
+    return dateObj >= thirtyDaysAgo && dateObj <= today;
+  }).length;
+  const adherenceRate = Math.round((takenInLast30Days / 30) * 100);
+
+  // Calculate current streak
+  const getStreakCount = () => {
+    let streak = 0;
+    let currentDate = new Date(today);
+    
+    while (takenDates.has(format(currentDate, 'yyyy-MM-dd')) && streak < 30) {
+      streak++;
+      currentDate.setDate(currentDate.getDate() - 1);
+    }
+    
+    return streak;
+  };
+  const currentStreak = getStreakCount();
+
+  // Calculate missed doses this month
+  const missedDoses = 30 - takenInLast30Days;
 
   const dailyMedication = {
     name: "Daily Medication Set",
     time: "8:00 AM",
-    status: takenDates.has(format(new Date(), 'yyyy-MM-dd')) ? "completed" : "pending"
+    status: isTodayTaken ? "completed" : "pending"
   };
 
   const handleSendReminderEmail = () => {
