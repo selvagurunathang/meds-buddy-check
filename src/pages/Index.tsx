@@ -1,16 +1,27 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Onboarding from "@/components/Onboarding";
 import PatientDashboard from "@/components/PatientDashboard";
 import CaretakerDashboard from "@/components/CaretakerDashboard";
-import { Button } from "@/components/ui/button";
+// import { Button } from "@/components/ui/button";
 import { Users, User } from "lucide-react";
+// import { useAuth } from "@/context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 type UserType = "patient" | "caretaker" | null;
 
 const Index = () => {
+
   const [userType, setUserType] = useState<UserType>(null);
   const [isOnboarded, setIsOnboarded] = useState(false);
+  // const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // useEffect(() => {
+  //   if (user) {
+  //     navigate("/");
+  //   }
+  // }, [user, navigate]);
 
   const handleOnboardingComplete = (type: UserType) => {
     setUserType(type);
@@ -41,15 +52,15 @@ const Index = () => {
               </p>
             </div>
           </div>
-          
-          <Button 
-            variant="outline" 
+
+          {/* <Button
+            variant="outline"
             onClick={switchUserType}
             className="flex items-center gap-2 hover:bg-accent transition-colors"
           >
             {userType === "patient" ? <Users className="w-4 h-4" /> : <User className="w-4 h-4" />}
             Switch to {userType === "patient" ? "Caretaker" : "Patient"}
-          </Button>
+          </Button> */}
         </div>
       </header>
 

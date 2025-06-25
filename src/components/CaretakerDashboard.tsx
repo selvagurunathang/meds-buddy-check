@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar } from "@/components/ui/Calendar";
 import { Users, Bell, Calendar as CalendarIcon, Mail, AlertTriangle, Check, Clock, Camera } from "lucide-react";
-import NotificationSettings from "./NotificationSettings";
+import NotificationSettings from "@/components/NotificationSettings";
 import { format, subDays, isToday, isBefore, startOfDay } from "date-fns";
 
 const CaretakerDashboard = () => {
