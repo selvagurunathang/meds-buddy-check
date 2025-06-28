@@ -1,31 +1,21 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAppNavigation } from '../hooks/use-navigate';
+import { useEmailInput, usePasswordInput } from '../hooks/useFormInput';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Link } from 'react-router-dom';
 
 type AuthType = 'LOGIN' | 'SIGNUP';
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
-
 export default function AuthForm() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const emailInput = useEmailInput();
+    const passwordInput = usePasswordInput();
     const [authType, setAuthType] = useState<AuthType>('LOGIN');
     const [message, setMessage] = useState('');
     const [loading, setLoading] = useState(false);
 
     const { goToDashboard } = useAppNavigation();
-
-    const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        setEmail(e.target.value);
-    }, []);
-
-    const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        setPassword(e.target.value);
-    }, []);
 
     const toggleAuthType = useCallback(() => {
         setAuthType((prev) => (prev === 'LOGIN' ? 'SIGNUP' : 'LOGIN'));
@@ -35,16 +25,16 @@ export default function AuthForm() {
         setMessage('');
         setLoading(true);
 
-        const sanitizedEmail = email.trim().toLowerCase();
-        const sanitizedPassword = password.trim();
+        const sanitizedEmail = emailInput.value.trim().toLowerCase();
+        const sanitizedPassword = passwordInput.value.trim();
 
-        if (!emailRegex.test(sanitizedEmail)) {
+        if (!emailInput.isValid) {
             setMessage('Please enter a valid email address.');
             setLoading(false);
             return;
         }
 
-        if (!passwordRegex.test(sanitizedPassword)) {
+        if (!passwordInput.isValid) {
             setMessage(
                 'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be at least 6 characters long.'
             );
@@ -86,7 +76,7 @@ export default function AuthForm() {
         } finally {
             setLoading(false);
         }
-    }, [email, password, authType, goToDashboard]);
+    }, [emailInput, passwordInput, authType, goToDashboard]);
 
     const isLogin = authType === 'LOGIN';
     const buttonLabel = loading ? 'Please wait...' : isLogin ? 'Login' : 'Signup';
@@ -102,22 +92,31 @@ export default function AuthForm() {
             <Input
                 type="email"
                 placeholder="Email"
-                value={email}
-                onChange={handleEmailChange}
+                value={emailInput.value}
+                onChange={emailInput.onChange}
                 className="w-full p-3 border-gray-300 rounded-lg mb-4"
             />
+            {!emailInput.isValid && (
+                <p className="text-sm text-red-600 -mt-2 mb-3">Invalid email format</p>
+            )}
 
             <Input
                 type="password"
                 placeholder="Password"
-                value={password}
-                onChange={handlePasswordChange}
+                value={passwordInput.value}
+                onChange={passwordInput.onChange}
                 className="w-full p-3 border-gray-300 rounded-lg mb-4"
             />
+            {!passwordInput.isValid && (
+                <p className="text-sm text-red-600 -mt-2 mb-3">
+                    Weak password: Must include upper, lower, number & symbol
+                </p>
+            )}
 
             <Button
-                className={`w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg ${loading ? 'bg-gray-400 cursor-not-allowed' : ''
-                    }`}
+                className={`w-full mt-6 text-white py-3 text-lg ${
+                    loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
                 onClick={handleAuth}
                 disabled={loading}
             >
@@ -139,6 +138,7 @@ export default function AuthForm() {
                     {toggleButtonLabel}
                 </Button>
             </p>
+
             {isLogin && (
                 <p className="mt-2 text-center text-sm text-gray-700">
                     <Link
