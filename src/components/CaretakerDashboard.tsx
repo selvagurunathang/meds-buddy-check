@@ -8,6 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Users, Bell, Calendar as CalendarIcon, Mail, AlertTriangle, Check, Clock, Camera } from "lucide-react";
 import NotificationSettings from "./NotificationSettings";
 import { format, subDays, isToday, isBefore, startOfDay } from "date-fns";
+import Medication from "./Medication";
 
 const CaretakerDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -151,7 +152,17 @@ const CaretakerDashboard = () => {
                 </Button>
               </CardContent>
             </Card>
-          </div>
+          </div>          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Medications
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Medication />
+            </CardContent>
+          </Card>
 
           {/* Adherence Progress */}
           <Card>
