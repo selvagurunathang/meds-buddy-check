@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import Header from '@/components/Header';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,7 @@ export default function ForgotPassword() {
 
     const handleReset = useCallback(async () => {
         const trimmedEmail = emailInput.value.trim();
+
         if (!trimmedEmail || !emailInput.isValid) {
             setMessage('Please enter a valid email address.');
             setMessageType('error');
@@ -42,11 +43,14 @@ export default function ForgotPassword() {
         }
     }, [emailInput]);
 
+    const buttonLabel = useMemo(() => (loading ? 'Sending...' : 'Send Reset Link'), [loading]);
+
     return (
         <>
             <Header />
             <div className="max-w-md mx-auto mt-16 p-6 border border-gray-200 rounded-2xl shadow-md bg-white">
                 <h2 className="text-2xl font-semibold text-center mb-6">Forgot Password</h2>
+
                 <Input
                     type="email"
                     placeholder="Email"
@@ -54,18 +58,28 @@ export default function ForgotPassword() {
                     onChange={emailInput.onChange}
                     className="w-full p-3 border-gray-300 rounded-lg"
                 />
+
+                {!emailInput.isValid && (
+                    <p id="emailError" className="text-sm text-red-600 mt-2">
+                        Invalid email format.
+                    </p>
+                )}
+
                 <Button
-                    className={`w-full mt-6 text-white py-3 text-lg ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                        }`}
+                    className={`w-full mt-6 text-white py-3 text-lg ${
+                        loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                     onClick={handleReset}
                     disabled={loading}
                 >
-                    {loading ? 'Sending...' : 'Send Reset Link'}
+                    {buttonLabel}
                 </Button>
+
                 {message && (
                     <p
-                        className={`mt-4 text-center text-sm ${messageType === 'error' ? 'text-red-600' : 'text-green-600'
-                            }`}
+                        className={`mt-4 text-center text-sm ${
+                            messageType === 'error' ? 'text-red-600' : 'text-green-600'
+                        }`}
                     >
                         {message}
                     </p>
