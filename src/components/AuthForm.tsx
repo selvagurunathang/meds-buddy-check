@@ -1,143 +1,155 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAppNavigation } from '../hooks/use-navigate';
+import { useEmailInput, usePasswordInput } from '../hooks/useFormInput';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Link } from 'react-router-dom';
 
 type AuthType = 'LOGIN' | 'SIGNUP';
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
-
 export default function AuthForm() {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [authType, setAuthType] = useState<AuthType>('LOGIN');
-    const [message, setMessage] = useState('');
-    const [loading, setLoading] = useState(false);
+  const emailInput = useEmailInput();
+  const passwordInput = usePasswordInput();
+  const [authType, setAuthType] = useState<AuthType>('LOGIN');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
-    const { goToDashboard } = useAppNavigation();
+  const { goToDashboard } = useAppNavigation();
 
-    const handleEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        setEmail(e.target.value);
-    }, []);
+  const isLogin = authType === 'LOGIN';
 
-    const handlePasswordChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        setPassword(e.target.value);
-    }, []);
+  const buttonLabel = useMemo(() => {
+    return loading ? 'Please wait...' : isLogin ? 'Login' : 'Signup';
+  }, [loading, isLogin]);
 
-    const toggleAuthType = useCallback(() => {
-        setAuthType((prev) => (prev === 'LOGIN' ? 'SIGNUP' : 'LOGIN'));
-    }, []);
+  const toggleText = isLogin ? "Don't have an account?" : 'Already have an account?';
+  const toggleButtonLabel = isLogin ? 'Sign up' : 'Log in';
 
-    const handleAuth = useCallback(async () => {
-        setMessage('');
-        setLoading(true);
+  const toggleAuthType = useCallback(() => {
+    setAuthType(prev => (prev === 'LOGIN' ? 'SIGNUP' : 'LOGIN'));
+    setMessage('');
+  }, []);
 
-        const sanitizedEmail = email.trim().toLowerCase();
-        const sanitizedPassword = password.trim();
+  const handleAuth = useCallback(async () => {
+    const sanitizedEmail = emailInput.value.trim().toLowerCase();
+    const sanitizedPassword = passwordInput.value.trim();
 
-        if (!emailRegex.test(sanitizedEmail)) {
-            setMessage('Please enter a valid email address.');
-            setLoading(false);
-            return;
+    if (!emailInput.isValid) {
+      setMessage('Please enter a valid email address.');
+      return;
+    }
+
+    if (!passwordInput.isValid) {
+      setMessage(
+        'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be at least 6 characters long.'
+      );
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: sanitizedEmail,
+          password: sanitizedPassword,
+        });
+
+        if (error) {
+          setMessage(error.message);
+        } else {
+          goToDashboard();
         }
+      } else {
+        const { data, error } = await supabase.auth.signUp({
+          email: sanitizedEmail,
+          password: sanitizedPassword,
+        });
 
-        if (!passwordRegex.test(sanitizedPassword)) {
-            setMessage(
-                'Password must contain at least one uppercase letter, one lowercase letter, one number, one special character, and be at least 6 characters long.'
-            );
-            setLoading(false);
-            return;
+        if (error || data.user.role === "") {
+          if (data.user.role === "") {
+            setMessage('Email already exists. Please log in instead.');
+          } else {
+            setMessage(error.message);
+          }
+        } else {
+          setMessage('Signup successful! Check your email to confirm.');
         }
+      }
+    } catch {
+      setMessage('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [emailInput, passwordInput, isLogin, goToDashboard]);
 
-        try {
-            if (authType === 'LOGIN') {
-                const { error } = await supabase.auth.signInWithPassword({
-                    email: sanitizedEmail,
-                    password: sanitizedPassword,
-                });
+  return (
+    <div className="max-w-md mx-auto mt-16 p-6 border border-gray-200 rounded-2xl shadow-md bg-white">
+      <h2 className="text-2xl font-semibold text-center mb-6">
+        {isLogin ? 'Login to your account' : 'Create a new account'}
+      </h2>
 
-                if (error) {
-                    setMessage(error.message);
-                } else {
-                    setMessage('Logged in successfully');
-                    goToDashboard();
-                }
-            } else {
-                const { error } = await supabase.auth.signUp({
-                    email: sanitizedEmail,
-                    password: sanitizedPassword,
-                });
+      <Input
+        type="email"
+        placeholder="Email"
+        value={emailInput.value}
+        onChange={emailInput.onChange}
+        className="w-full p-3 border-gray-300 rounded-lg mb-4"
+      />
+      {!emailInput.isValid && (
+        <p className="text-sm text-red-600 -mt-2 mb-3">Invalid email format</p>
+      )}
 
-                if (error) {
-                    if (error.message.toLowerCase().includes('user already registered')) {
-                        setMessage('Email already exists. Please log in instead.');
-                    } else {
-                        setMessage(error.message);
-                    }
-                } else {
-                    setMessage('Signup successful! Check your email to confirm.');
-                }
-            }
-        } catch (err: any) {
-            setMessage('Something went wrong. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    }, [email, password, authType, goToDashboard]);
+      <Input
+        type="password"
+        placeholder="Password"
+        value={passwordInput.value}
+        onChange={passwordInput.onChange}
+        className="w-full p-3 border-gray-300 rounded-lg mb-4"
+      />
+      {!passwordInput.isValid && (
+        <p className="text-sm text-red-600 -mt-2 mb-3">
+          Weak password: Must include upper, lower, number & symbol
+        </p>
+      )}
 
-    const isLogin = authType === 'LOGIN';
-    const buttonLabel = loading ? 'Please wait...' : isLogin ? 'Login' : 'Signup';
-    const toggleText = isLogin ? "Don't have an account?" : 'Already have an account?';
-    const toggleButtonLabel = isLogin ? 'Sign up' : 'Log in';
+      <Button
+        className={`w-full mt-6 text-white py-3 text-lg ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+          }`}
+        onClick={handleAuth}
+        disabled={loading}
+      >
+        {buttonLabel}
+      </Button>
 
-    return (
-        <div className="max-w-md mx-auto mt-16 p-6 border border-gray-200 rounded-2xl shadow-md bg-white">
-            <h2 className="text-2xl font-semibold text-center mb-6">
-                {isLogin ? 'Login to your account' : 'Create a new account'}
-            </h2>
+      {message && (
+        <p className="mt-4 text-center text-sm text-red-600">{message}</p>
+      )}
 
-            <Input
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={handleEmailChange}
-                className="w-full p-3 border-gray-300 rounded-lg mb-4"
-            />
+      <p className="mt-6 text-center text-sm text-gray-700">
+        {toggleText}{' '}
+        <Button
+          type="button"
+          variant="link"
+          onClick={toggleAuthType}
+          className="text-blue-600 font-medium hover:underline ml-1"
+        >
+          {toggleButtonLabel}
+        </Button>
+      </p>
 
-            <Input
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={handlePasswordChange}
-                className="w-full p-3 border-gray-300 rounded-lg mb-4"
-            />
-
-            <Button
-                className={`w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3 text-lg ${loading ? 'bg-gray-400 cursor-not-allowed' : ''
-                    }`}
-                onClick={handleAuth}
-                disabled={loading}
-            >
-                {buttonLabel}
-            </Button>
-
-            {message && (
-                <p className="mt-4 text-center text-sm text-red-600">{message}</p>
-            )}
-
-            <p className="mt-6 text-center text-sm text-gray-700">
-                {toggleText}{' '}
-                <Button
-                    type="button"
-                    variant="link"
-                    onClick={toggleAuthType}
-                    className="text-blue-600 font-medium hover:underline ml-1"
-                >
-                    {toggleButtonLabel}
-                </Button>
-            </p>
-        </div>
-    );
+      {isLogin && (
+        <p className="mt-2 text-center text-sm text-gray-700">
+          <Link
+            to="/forgotPassword"
+            className="text-blue-600 font-medium hover:underline ml-1"
+          >
+            Forgot password?
+          </Link>
+        </p>
+      )}
+    </div>
+  );
 }
