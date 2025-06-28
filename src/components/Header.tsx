@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
-import { supabase } from '../supabase/supabaseClient';
+import { useEffect, useState, memo } from 'react';
+import { supabase } from '../lib/supabaseClient';
 import { useAppNavigation } from '../hooks/use-navigate';
-import { LogOut } from 'lucide-react';
+import { LogOut, Users, User } from 'lucide-react';
 import { Button } from "@/components/ui/button";
-import { Users, User } from "lucide-react";
 
 interface HeaderProps {
     userType?: 'patient' | 'caretaker';
@@ -11,7 +10,7 @@ interface HeaderProps {
     isOnboarded?: boolean;
 }
 
-export default function Header({ userType, switchUserType, isOnboarded }: HeaderProps) {
+const Header = ({ userType, switchUserType, isOnboarded }: HeaderProps) => {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const { goToLogin } = useAppNavigation();
 
@@ -55,19 +54,22 @@ export default function Header({ userType, switchUserType, isOnboarded }: Header
                     </div>
                 </div>
                 <div className="flex gap-6">
-                    {isOnboarded &&
+                    {isOnboarded && switchUserType && (
                         <Button
                             variant="outline"
-                            onClick={() => { switchUserType() }}
+                            onClick={switchUserType}
+                            aria-label="Switch User Type"
                             className="flex items-center gap-2 hover:bg-accent transition-colors"
                         >
                             {userType === "patient" ? <Users className="w-4 h-4" /> : <User className="w-4 h-4" />}
                             Switch to {userType === "patient" ? "Caretaker" : "Patient"}
-                        </Button>}
+                        </Button>
+                    )}
                     {isLoggedIn && (
                         <Button
                             onClick={handleLogout}
                             title="Logout"
+                            aria-label="Logout"
                             variant="outline"
                             className="text-gray-600"
                         >
@@ -78,4 +80,6 @@ export default function Header({ userType, switchUserType, isOnboarded }: Header
             </div>
         </header>
     );
-}
+};
+
+export default memo(Header);
