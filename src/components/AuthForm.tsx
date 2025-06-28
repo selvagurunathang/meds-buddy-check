@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useAppNavigation } from '../hooks/use-navigate';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
+import { Link } from 'react-router-dom';
 
 type AuthType = 'LOGIN' | 'SIGNUP';
 
@@ -65,13 +66,13 @@ export default function AuthForm() {
                     goToDashboard();
                 }
             } else {
-                const { error } = await supabase.auth.signUp({
+                const { data, error } = await supabase.auth.signUp({
                     email: sanitizedEmail,
                     password: sanitizedPassword,
                 });
 
-                if (error) {
-                    if (error.message.toLowerCase().includes('user already registered')) {
+                if (error || data.user.role === "") {
+                    if (data.user.role === "") {
                         setMessage('Email already exists. Please log in instead.');
                     } else {
                         setMessage(error.message);
@@ -138,6 +139,16 @@ export default function AuthForm() {
                     {toggleButtonLabel}
                 </Button>
             </p>
+            {isLogin && (
+                <p className="mt-2 text-center text-sm text-gray-700">
+                    <Link
+                        to="/forgotPassword"
+                        className="text-blue-600 font-medium hover:underline ml-1"
+                    >
+                        Forgot password?
+                    </Link>
+                </p>
+            )}
         </div>
     );
 }
