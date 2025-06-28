@@ -8,6 +8,7 @@ import NotFound from "./pages/NotFound";
 import LoginForm from "./pages/LoginForm";
 import ForgotPassword from "./pages/ForgotPassword";
 import UpdatePassword from "./pages/UpdatePassword";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -19,11 +20,13 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LoginForm />} />
-          <Route path="/dashboard" element={<Index />} />
-          <Route path="/forgotPassword" element={<ForgotPassword />} />
-          <Route path="/updatePassword" element={<UpdatePassword />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/dashboard" element={<Index />} />
+            <Route path="/forgotPassword" element={<ForgotPassword />} />
+            <Route path="/updatePassword" element={<UpdatePassword />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
