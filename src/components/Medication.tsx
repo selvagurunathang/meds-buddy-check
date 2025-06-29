@@ -3,6 +3,7 @@ import MedicationList from './MedicationList'
 import { useState } from 'react'
 
 export default function Medication() {
+    
     const [refresh, setRefresh] = useState(false)
 
     return (

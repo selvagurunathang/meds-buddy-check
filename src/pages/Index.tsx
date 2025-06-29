@@ -8,6 +8,7 @@ import Header from '@/components/Header';
 type UserType = "patient" | "caretaker" | null;
 
 const Index = () => {
+  
   const [userType, setUserType] = useState<UserType>(null);
   const [isOnboarded, setIsOnboarded] = useState(false);
 

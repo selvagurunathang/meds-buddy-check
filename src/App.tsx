@@ -22,11 +22,10 @@ const App = () => (
           <Route path="/" element={<LoginForm />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/dashboard" element={<Index />} />
-            <Route path="/forgotPassword" element={<ForgotPassword />} />
-            <Route path="/updatePassword" element={<UpdatePassword />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
           </Route>
+          <Route path="/forgotPassword" element={<ForgotPassword />} />
+          <Route path="/updatePassword" element={<UpdatePassword />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

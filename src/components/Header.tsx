@@ -11,7 +11,9 @@ interface HeaderProps {
 }
 
 const Header = ({ userType, switchUserType, isOnboarded }: HeaderProps) => {
+
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    
     const { goToLogin } = useAppNavigation();
 
     useEffect(() => {
