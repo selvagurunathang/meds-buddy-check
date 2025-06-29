@@ -1,20 +1,24 @@
-import { useEffect, useState, useCallback, memo } from 'react'
-import { supabase } from '../lib/supabaseClient'
-import { Input } from './ui/input'
-import { Button } from './ui/button'
+import { useEffect, useState, useCallback, memo } from 'react';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
 import {
     Select,
     SelectTrigger,
     SelectValue,
     SelectContent,
     SelectItem,
-} from './ui/select'
+} from './ui/select';
+import {
+    getAllMedications,
+    deleteMedication,
+    updateMedication
+} from '../lib/supabaseService';
 
 interface Medication {
-    id: string
-    name: string
-    dosage: string
-    schedule: string
+    id: string;
+    name: string;
+    dosage: string;
+    schedule: string;
 }
 
 const scheduleOptions = [
@@ -25,9 +29,8 @@ const scheduleOptions = [
     'Every 8 hours',
     'Before sleep',
     'As needed',
-]
+];
 
-// ✅ Memoized MedicationCard component
 const MedicationCard = memo(function MedicationCard({
     med,
     isEditing,
@@ -38,14 +41,14 @@ const MedicationCard = memo(function MedicationCard({
     onSave,
     onDelete,
 }: {
-    med: Medication
-    isEditing: boolean
-    editedValues: { name: string; dosage: string; schedule: string }
-    onEditChange: (field: keyof Medication, value: string) => void
-    onEditClick: () => void
-    onCancel: () => void
-    onSave: () => void
-    onDelete: () => void
+    med: Medication;
+    isEditing: boolean;
+    editedValues: { name: string; dosage: string; schedule: string };
+    onEditChange: (field: keyof Medication, value: string) => void;
+    onEditClick: () => void;
+    onCancel: () => void;
+    onSave: () => void;
+    onDelete: () => void;
 }) {
     return (
         <div className="p-4 border rounded-2xl shadow-sm hover:shadow-md transition">
@@ -132,72 +135,71 @@ const MedicationCard = memo(function MedicationCard({
                 </div>
             </div>
         </div>
-    )
-})
+    );
+});
 
 export default function MedicationList() {
-    const [medications, setMedications] = useState<Medication[]>([])
-    const [editingId, setEditingId] = useState<string | null>(null)
+    const [medications, setMedications] = useState<Medication[]>([]);
+    const [editingId, setEditingId] = useState<string | null>(null);
     const [editedValues, setEditedValues] = useState<{
-        name: string
-        dosage: string
-        schedule: string
-    }>({ name: '', dosage: '', schedule: '' })
+        name: string;
+        dosage: string;
+        schedule: string;
+    }>({ name: '', dosage: '', schedule: '' });
 
     const fetchMeds = useCallback(async () => {
-        const { data, error } = await supabase
-            .from('medications')
-            .select('*')
-            .order('created_at', { ascending: false })
-        if (!error && data) setMedications(data)
-    }, [])
+        try {
+            const meds = await getAllMedications();
+            setMedications(meds);
+        } catch (error) {
+            console.error("Failed to fetch medications", error);
+        }
+    }, []);
 
     useEffect(() => {
-        fetchMeds()
-    }, [fetchMeds])
+        fetchMeds();
+    }, [fetchMeds]);
 
     const handleDelete = async (id: string) => {
-        const { error } = await supabase.from('medications').delete().eq('id', id)
-        if (!error) fetchMeds()
-    }
+        try {
+            await deleteMedication(id);
+            fetchMeds();
+        } catch (error) {
+            console.error("Delete error:", error);
+        }
+    };
 
     const handleEditClick = (med: Medication) => {
-        setEditingId(med.id)
+        setEditingId(med.id);
         setEditedValues({
             name: med.name,
             dosage: med.dosage.replace(' mg', ''),
             schedule: med.schedule,
-        })
-    }
+        });
+    };
 
     const handleCancelEdit = () => {
-        setEditingId(null)
-        setEditedValues({ name: '', dosage: '', schedule: '' })
-    }
+        setEditingId(null);
+        setEditedValues({ name: '', dosage: '', schedule: '' });
+    };
 
     const handleSave = async (id: string) => {
-        const { name, dosage, schedule } = editedValues
-        if (!name.trim() || !dosage || isNaN(Number(dosage)) || !schedule) return
+        const { name, dosage, schedule } = editedValues;
+        if (!name.trim() || !dosage || isNaN(Number(dosage)) || !schedule) return;
 
-        const { error } = await supabase
-            .from('medications')
-            .update({
-                name: name.trim(),
-                dosage: `${dosage} mg`,
-                schedule,
-            })
-            .eq('id', id)
-
-        if (!error) {
-            setEditingId(null)
-            setEditedValues({ name: '', dosage: '', schedule: '' })
-            fetchMeds()
+        try {
+            await updateMedication(id, { name, dosage, schedule });
+            setEditingId(null);
+            setEditedValues({ name: '', dosage: '', schedule: '' });
+            fetchMeds();
+        } catch (error) {
+            console.error("Update error:", error);
         }
-    }
+    };
 
     const handleEditChange = (field: keyof Medication, value: string) => {
-        setEditedValues((prev) => ({ ...prev, [field]: value }))
-    }
+        setEditedValues((prev) => ({ ...prev, [field]: value }));
+    };
 
     return (
         <div className="grid gap-4 mt-6">
@@ -221,5 +223,5 @@ export default function MedicationList() {
                 ))
             )}
         </div>
-    )
+    );
 }

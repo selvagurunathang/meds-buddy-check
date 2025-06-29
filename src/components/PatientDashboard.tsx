@@ -2,11 +2,17 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { Check, Calendar as CalendarIcon, Image, User } from "lucide-react";
+import { Check, Calendar as CalendarIcon, User } from "lucide-react";
 import MedicationTracker from "./MedicationTracker";
 import { format, isToday, isBefore, startOfDay, startOfMonth, endOfMonth } from "date-fns";
 import { useEffect } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import {
+  getCurrentUser,
+  getMedicationsWithLogs,
+  getMedicationIds,
+  getMedicationLogsInRange,
+  markMedicationTaken
+} from "@/lib/supabaseService";
 
 const PatientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -56,159 +62,113 @@ const PatientDashboard = () => {
 
   useEffect(() => {
     const fetchMedications = async () => {
+      if (!user) return;
 
-      if (!user) {
-        console.error("User not logged in");
-        return;
+      try {
+        const meds = await getMedicationsWithLogs(user.id);
+        const today = format(new Date(), 'yyyy-MM-dd');
+
+        const result = meds.map((med: any) => {
+          const todayLog = med.medication_logs.find((log: any) => log.date === today);
+          return {
+            id: med.id,
+            name: med.name,
+            dosage: med.dosage,
+            schedule: med.schedule,
+            status_for_today: todayLog?.status ?? "pending"
+          };
+        });
+
+        setMedications(result);
+      } catch (err) {
+        console.error("Error fetching medications:", err);
       }
-
-      const today = new Date().toISOString().split("T")[0];
-
-      const { data: meds, error } = await supabase
-        .from("medications")
-        .select(`
-        id,
-        name,
-        dosage,
-        schedule,
-        medication_logs (
-          status,
-          date
-        )
-      `)
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error("Error fetching medications:", error);
-        return;
-      }
-
-      const result = meds.map((med: any) => {
-        const todayLog = med.medication_logs.find(
-          (log: any) => log.date === today
-        );
-        return {
-          id: med.id,
-          name: med.name,
-          dosage: med.dosage,
-          schedule: med.schedule,
-          status_for_today: todayLog?.status ?? "pending"
-        };
-      });
-
-      setMedications(result);
     };
 
     fetchMedications();
   }, [user]);
 
   useEffect(() => {
-  const fetchMedicationLogs = async () => {
-    if (!user) return;
+    const fetchLogs = async () => {
+      if (!user) return;
 
-    const start = format(startOfMonth(today), 'yyyy-MM-dd');
-    const end = format(endOfMonth(today), 'yyyy-MM-dd');
+      try {
+        const start = format(startOfMonth(today), 'yyyy-MM-dd');
+        const end = format(endOfMonth(today), 'yyyy-MM-dd');
+        const medIds = await getMedicationIds(user.id);
+        const logs = await getMedicationLogsInRange(user.id, start, end);
 
-    const { data: medications, error: medError } = await supabase
-      .from("medications")
-      .select("id")
-      .eq("user_id", user.id);
+        const groupedLogs: Record<string, { taken: number, total: number }> = {};
 
-    if (medError || !medications) {
-      console.error("Error fetching medications:", medError);
-      return;
-    }
+        for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
+          const dateStr = format(d, 'yyyy-MM-dd');
+          groupedLogs[dateStr] = { taken: 0, total: medIds.length };
+        }
 
-    const medicationIds = medications.map((m) => m.id);
+        logs.forEach(log => {
+          if (log.status === "taken") {
+            groupedLogs[log.date].taken += 1;
+          }
+        });
 
-    const { data: logs, error: logError } = await supabase
-      .from("medication_logs")
-      .select("date, medication_id, status")
-      .eq("user_id", user.id)
-      .gte("date", start)
-      .lte("date", end);
+        const statusMap: Record<string, "taken" | "missed"> = {};
+        const takenSet = new Set<string>();
 
-    if (logError) {
-      console.error("Error fetching logs:", logError);
-      return;
-    }
+        for (const [date, { taken, total }] of Object.entries(groupedLogs)) {
+          if (taken === total) {
+            statusMap[date] = "taken";
+            takenSet.add(date);
+          } else {
+            statusMap[date] = "missed";
+          }
+        }
 
-    const groupedLogs: Record<string, { taken: number, total: number }> = {};
-
-    for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
-      const dateStr = format(d, 'yyyy-MM-dd');
-      groupedLogs[dateStr] = { taken: 0, total: medicationIds.length };
-    }
-
-    logs.forEach(log => {
-      const dateStr = log.date;
-      if (log.status === "taken") {
-        groupedLogs[dateStr].taken += 1;
+        setMedicationStatusMap(statusMap);
+        setTakenDates(takenSet);
+      } catch (err) {
+        console.error("Error fetching logs:", err);
       }
-    });
+    };
 
-    const statusMap: Record<string, "taken" | "missed"> = {};
-    const takenSet = new Set<string>();
-
-    for (const [date, { taken, total }] of Object.entries(groupedLogs)) {
-      statusMap[date] = taken === total ? "taken" : "missed";
-      if (taken === total) {
-        takenSet.add(date);
-      }
-    }
-
-    setMedicationStatusMap(statusMap);
-    setTakenDates(takenSet);
-  };
-
-  fetchMedicationLogs();
-}, [user, updateCalender]);
+    fetchLogs();
+  }, [user, updateCalender]);
 
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUser(user);
+      try {
+        const user = await getCurrentUser();
+        setUser(user);
+      } catch (err) {
+        console.error("Error getting user:", err);
+      }
     };
     fetchUser();
   }, []);
 
   const fetchMedicationsForDate = async (dateStr: string) => {
+    if (!user) return;
 
-    const { data: meds, error } = await supabase
-      .from("medications")
-      .select(`
-      id,
-      name,
-      dosage,
-      schedule,
-      medication_logs (
-        status,
-        date
-      )
-    `)
-      .eq("user_id", user?.id);
+    try {
+      const meds = await getMedicationsWithLogs(user.id);
+      const isPast = new Date(dateStr) < startOfDay(new Date());
+      const isToday = format(new Date(), 'yyyy-MM-dd') === dateStr;
 
-    if (error) {
-      console.error("Error fetching medications:", error);
-      return;
+      const result = meds.map((med: any) => {
+        const log = med.medication_logs.find((l: any) => l.date === dateStr);
+        const status = log?.status ?? (isPast && !isToday ? "missed" : "pending");
+        return {
+          id: med.id,
+          name: med.name,
+          dosage: med.dosage,
+          schedule: med.schedule,
+          status_for_today: status
+        };
+      });
+
+      setMedications(result);
+    } catch (err) {
+      console.error("Error fetching for date:", err);
     }
-
-    const isPast = new Date(dateStr) < startOfDay(new Date());
-    const isToday = format(new Date(), 'yyyy-MM-dd') === dateStr;
-
-    const result = meds.map((med: any) => {
-      const log = med.medication_logs.find((l: any) => l.date === dateStr);
-      const status = log?.status ?? (isPast && !isToday ? "missed" : "pending");
-      return {
-        id: med.id,
-        name: med.name,
-        dosage: med.dosage,
-        schedule: med.schedule,
-        status_for_today: status
-      };
-    });
-
-    setMedications(result);
   };
 
   const handleMarkMedicationTaken = async (
@@ -216,27 +176,25 @@ const PatientDashboard = () => {
     date: string,
     imageFile?: File
   ) => {
+    if (!user) return;
 
-    const { error } = await supabase.from("medication_logs").upsert({
-      medication_id: medicationId,
-      user_id: user?.id,
-      date,
-      status: "taken"
-    });
+    try {
+      await markMedicationTaken({
+        userId: user.id,
+        medicationId,
+        date
+      });
 
-    if (error) {
-      console.error("Error updating medication log:", error);
-      return;
+      setMedications((prev) =>
+        prev.map((med) =>
+          med.id === medicationId ? { ...med, status_for_today: "taken" } : med
+        )
+      );
+      setUpdateCalender(prev => !prev);
+      console.log("Marked taken:", medicationId, imageFile?.name);
+    } catch (err) {
+      console.error("Error marking taken:", err);
     }
-
-    setMedications((prev) =>
-      prev.map((med) =>
-        med.id === medicationId ? { ...med, status_for_today: "taken" } : med
-      )
-    );
-    setUpdateCalender(!updateCalender);
-
-    console.log("Marked taken:", medicationId, imageFile?.name);
   };
 
   return (

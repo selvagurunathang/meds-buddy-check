@@ -1,8 +1,8 @@
 import { useEffect, useState, memo } from 'react';
-import { supabase } from '../lib/supabaseClient';
 import { useAppNavigation } from '../hooks/use-navigate';
 import { LogOut, Users, User } from 'lucide-react';
 import { Button } from "@/components/ui/button";
+import { checkSession, logout, onAuthStateChange } from '../lib/supabaseService';
 
 interface HeaderProps {
     userType?: 'patient' | 'caretaker';
@@ -15,27 +15,33 @@ const Header = ({ userType, switchUserType, isOnboarded }: HeaderProps) => {
     const { goToLogin } = useAppNavigation();
 
     useEffect(() => {
-        const checkSession = async () => {
-            const { data } = await supabase.auth.getSession();
-            setIsLoggedIn(!!data.session);
+        const init = async () => {
+            try {
+                const session = await checkSession();
+                setIsLoggedIn(!!session);
+            } catch {
+                setIsLoggedIn(false);
+            }
         };
 
-        checkSession();
+        init();
 
-        const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+        const subscription = onAuthStateChange((session) => {
             setIsLoggedIn(!!session);
         });
 
         return () => {
-            authListener.subscription.unsubscribe();
+            subscription.unsubscribe();
         };
     }, []);
 
     const handleLogout = async () => {
-        const { error } = await supabase.auth.signOut();
-        if (!error) {
+        try {
+            await logout();
             setIsLoggedIn(false);
             goToLogin();
+        } catch (error) {
+            console.error("Logout error:", error);
         }
     };
 

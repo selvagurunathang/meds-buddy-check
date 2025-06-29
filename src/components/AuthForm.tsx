@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { signInWithEmail, signUpWithEmail } from '../lib/supabaseService';
 import { useAppNavigation } from '../hooks/use-navigate';
 import { useEmailInput, usePasswordInput } from '../hooks/useFormInput';
 import { Button } from './ui/button';
@@ -52,10 +52,7 @@ export default function AuthForm() {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: sanitizedEmail,
-          password: sanitizedPassword,
-        });
+        const { error } = await signInWithEmail(sanitizedEmail, sanitizedPassword);
 
         if (error) {
           setMessage(error.message);
@@ -63,10 +60,7 @@ export default function AuthForm() {
           goToDashboard();
         }
       } else {
-        const { data, error } = await supabase.auth.signUp({
-          email: sanitizedEmail,
-          password: sanitizedPassword,
-        });
+        const { data, error } = await signUpWithEmail(sanitizedEmail, sanitizedPassword);
 
         if (error || data.user.role === "") {
           if (data.user.role === "") {

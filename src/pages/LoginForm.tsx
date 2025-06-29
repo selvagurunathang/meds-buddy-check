@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import AuthForm from '../components/AuthForm';
 import { useAppNavigation } from '../hooks/use-navigate';
 import Header from '../components/Header';
+import AuthForm from '../components/AuthForm';
+import { checkSession } from '../lib/supabaseService';
 
 function LoginForm() {
   const { goToDashboard } = useAppNavigation();
@@ -10,10 +10,10 @@ function LoginForm() {
   useEffect(() => {
     let isMounted = true;
 
-    const checkSession = async () => {
+    const getSession = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
-        if (isMounted && data.session?.user) {
+        const session = await checkSession();
+        if (isMounted && session?.user) {
           goToDashboard();
         }
       } catch (error) {
@@ -21,7 +21,7 @@ function LoginForm() {
       }
     };
 
-    checkSession();
+    getSession();
 
     return () => {
       isMounted = false;
