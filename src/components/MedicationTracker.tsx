@@ -9,6 +9,7 @@ interface Medication {
   id: string;
   name: string;
   dosage: string;
+  schedule: string;
   status_for_today: "taken" | "pending" | "missed";
 }
 
@@ -71,6 +72,8 @@ const MedicationTracker = ({
       ) : (
         medications.map((med) => {
           const isTaken = med.status_for_today === "taken";
+          const isMissed = med.status_for_today === "missed";
+          const isPending = med.status_for_today === "pending";
           const imagePreview = previewMap[med.id];
 
           return (
@@ -81,9 +84,12 @@ const MedicationTracker = ({
                   <div>
                     <h4 className="font-semibold text-lg">{med.name}</h4>
                     <p className="text-sm text-muted-foreground">{med.dosage}</p>
+                    <p className="text-sm text-muted-foreground">{med.schedule}</p>
                   </div>
                   {isTaken ? (
                     <Badge className="bg-green-100 text-green-700">Taken</Badge>
+                  ) : isMissed ? (
+                    <Badge className="bg-red-100 text-red-700">Missed</Badge>
                   ) : (
                     <Badge variant="outline" className="text-yellow-700">
                       Pending
@@ -91,7 +97,7 @@ const MedicationTracker = ({
                   )}
                 </div>
 
-                {!isTaken && (
+                {!isTaken && isPending && (
                   <div className="text-center mt-2">
                     <input
                       type="file"
@@ -124,7 +130,7 @@ const MedicationTracker = ({
                   </div>
                 )}
 
-                {!isTaken && (
+                {!isTaken && isPending && (
                   <Button
                     onClick={() => handleMark(med.id)}
                     className="w-full bg-green-600 hover:bg-green-700 text-white"
