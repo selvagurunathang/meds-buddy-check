@@ -1,48 +1,69 @@
-
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Image, Camera, Clock } from "lucide-react";
+import { Check, Camera } from "lucide-react";
 import { format } from "date-fns";
+
+interface Medication {
+  id: string;
+  name: string;
+  dosage: string;
+  schedule: string;
+  status_for_today: "taken" | "pending" | "missed";
+}
 
 interface MedicationTrackerProps {
   date: string;
-  isTaken: boolean;
-  onMarkTaken: (date: string, imageFile?: File) => void;
+  medications: Medication[];
+  onMarkTaken: (medicationId: string, date: string, imageFile?: File) => void;
   isToday: boolean;
 }
 
-const MedicationTracker = ({ date, isTaken, onMarkTaken, isToday }: MedicationTrackerProps) => {
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+const MedicationTracker = ({
+  date,
+  medications,
+  onMarkTaken,
+  isToday
+}: MedicationTrackerProps) => {
 
-  const dailyMedication = {
-    name: "Daily Medication Set",
-    time: "8:00 AM",
-    description: "Complete set of daily tablets"
-  };
+  const [imageMap, setImageMap] = useState<Record<string, File | null>>({});
+  const [previewMap, setPreviewMap] = useState<Record<string, string | null>>({});
+  
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
+  const handleImageSelect = useCallback(
+    (medId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
       const reader = new FileReader();
       reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
+        setImageMap((prev) => ({ ...prev, [medId]: file }));
+        setPreviewMap((prev) => ({ ...prev, [medId]: e.target?.result as string }));
       };
       reader.readAsDataURL(file);
-    }
-  };
+    },
+    []
+  );
 
-  const handleMarkTaken = () => {
-    onMarkTaken(date, selectedImage || undefined);
-    setSelectedImage(null);
-    setImagePreview(null);
-  };
+  const handleMark = useCallback(
+    (medId: string) => {
+      const imageFile = imageMap[medId] || undefined;
+      onMarkTaken(medId, date, imageFile);
+    },
+    [date, imageMap, onMarkTaken]
+  );
 
-  if (isTaken) {
+  const allTaken = useMemo(() => {
+    return medications.length > 0 && medications.every((med) => med.status_for_today === "taken");
+  }, [medications]);
+
+  if (medications.length === 0) {
+    return <p>No medications scheduled for today.</p>;
+  }
+
+  if (allTaken) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-center p-8 bg-green-50 rounded-xl border-2 border-green-200">
@@ -54,110 +75,91 @@ const MedicationTracker = ({ date, isTaken, onMarkTaken, isToday }: MedicationTr
               Medication Completed!
             </h3>
             <p className="text-green-600">
-              Great job! You've taken your medication for {format(new Date(date), 'MMMM d, yyyy')}.
+              Great job! You've taken your medication for {format(new Date(date), "MMMM d, yyyy")}.
             </p>
           </div>
         </div>
-        
-        <Card className="border-green-200 bg-green-50/50">
-          <CardContent className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                <Check className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h4 className="font-medium text-green-800">{dailyMedication.name}</h4>
-                <p className="text-sm text-green-600">{dailyMedication.description}</p>
-              </div>
-            </div>
-            <Badge variant="secondary" className="bg-green-100 text-green-800">
-              <Clock className="w-3 h-3 mr-1" />
-              {dailyMedication.time}
-            </Badge>
-          </CardContent>
-        </Card>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      <Card className="hover:shadow-md transition-shadow">
-        <CardContent className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-blue-600 font-medium">1</span>
-            </div>
-            <div>
-              <h4 className="font-medium">{dailyMedication.name}</h4>
-              <p className="text-sm text-muted-foreground">{dailyMedication.description}</p>
-            </div>
-          </div>
-          <Badge variant="outline">
-            <Clock className="w-3 h-3 mr-1" />
-            {dailyMedication.time}
-          </Badge>
-        </CardContent>
-      </Card>
+      {medications.map((med) => {
+        const imagePreview = previewMap[med.id];
+        const imageFile = imageMap[med.id];
 
-      {/* Image Upload Section */}
-      <Card className="border-dashed border-2 border-border/50">
-        <CardContent className="p-6">
-          <div className="text-center">
-            <Image className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="font-medium mb-2">Add Proof Photo (Optional)</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Take a photo of your medication or pill organizer as confirmation
-            </p>
-            
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageSelect}
-              ref={fileInputRef}
-              className="hidden"
-            />
-            
-            <Button
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              className="mb-4"
-            >
-              <Camera className="w-4 h-4 mr-2" />
-              {selectedImage ? "Change Photo" : "Take Photo"}
-            </Button>
-            
-            {imagePreview && (
-              <div className="mt-4">
-                <img
-                  src={imagePreview}
-                  alt="Medication proof"
-                  className="max-w-full h-32 object-cover rounded-lg mx-auto border-2 border-border"
-                />
-                <p className="text-sm text-muted-foreground mt-2">
-                  Photo selected: {selectedImage?.name}
-                </p>
+        return (
+          <Card key={med.id} className="border shadow-sm">
+            <CardContent className="p-4 space-y-3">
+              {/* Medication Info */}
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="font-semibold text-lg">{med.name}</h4>
+                  <p className="text-sm text-muted-foreground">{med.dosage}</p>
+                  <p className="text-sm text-muted-foreground">{med.schedule}</p>
+                </div>
+                <Badge
+                  className={
+                    med.status_for_today === "taken"
+                      ? "bg-green-100 text-green-700"
+                      : med.status_for_today === "missed"
+                      ? "bg-red-100 text-red-700"
+                      : "text-yellow-700"
+                  }
+                  variant={med.status_for_today === "pending" ? "outline" : "default"}
+                >
+                  {med.status_for_today.charAt(0).toUpperCase() + med.status_for_today.slice(1)}
+                </Badge>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
-      {/* Mark as Taken Button */}
-      <Button
-        onClick={handleMarkTaken}
-        className="w-full py-4 text-lg bg-green-600 hover:bg-green-700 text-white"
-        disabled={!isToday}
-      >
-        <Check className="w-5 h-5 mr-2" />
-        {isToday ? "Mark as Taken" : "Cannot mark future dates"}
-      </Button>
+              {med.status_for_today === "pending" && (
+                <>
+                  <div className="text-center mt-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      ref={(el) => (fileInputRefs.current[med.id] = el)}
+                      onChange={(e) => handleImageSelect(med.id, e)}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRefs.current[med.id]?.click()}
+                      className="mb-2"
+                    >
+                      <Camera className="w-4 h-4 mr-2" />
+                      {imageFile ? "Change Photo" : "Add Photo"}
+                    </Button>
+                    {imagePreview && (
+                      <div className="mt-2">
+                        <img
+                          src={imagePreview}
+                          alt="Medication proof"
+                          className="h-24 object-cover rounded-md border mx-auto"
+                        />
+                        <p className="text-xs mt-1 text-muted-foreground">
+                          {imageFile?.name}
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
-      {!isToday && (
-        <p className="text-center text-sm text-muted-foreground">
-          You can only mark today's medication as taken
-        </p>
-      )}
+                  <Button
+                    onClick={() => handleMark(med.id)}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white"
+                    disabled={!isToday}
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    {isToday ? "Mark as Taken" : "Cannot mark future date"}
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };

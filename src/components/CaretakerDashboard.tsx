@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,23 +7,28 @@ import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Users, Bell, Calendar as CalendarIcon, Mail, AlertTriangle, Check, Clock, Camera } from "lucide-react";
 import NotificationSettings from "./NotificationSettings";
-import { format, subDays, isToday, isBefore, startOfDay } from "date-fns";
+import { format, subDays, isToday, isBefore, startOfDay, endOfMonth, differenceInCalendarDays } from "date-fns";
+import Medication from "./Medication";
+import {
+  getCurrentUser,
+  getMedicationLogs,
+  getMedications,
+  getMedicationsWithLogs,
+} from "@/lib/supabaseService";
 
 const CaretakerDashboard = () => {
+  
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [medicationStatusForToday, setMedicationStatusForToday] = useState<"taken" | "missed" | "pending">("pending");
+  const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
+  const [adherenceRate, setAdherenceRate] = useState<number>(0);
+  const [missedDoses, setMissedDoses] = useState<number>(0);
+  const [currentStreak, setCurrentStreak] = useState<number>(0);
+  const [remainingDays, setRemainingDays] = useState<number>(0);
 
   // Mock data for demonstration
   const patientName = "Eleanor Thompson";
-  const adherenceRate = 85;
-  const currentStreak = 5;
-  const missedDoses = 3;
-
-  // Mock data for taken medications (same as in PatientDashboard)
-  const takenDates = new Set([
-    "2024-06-10", "2024-06-09", "2024-06-07", "2024-06-06", 
-    "2024-06-05", "2024-06-04", "2024-06-02", "2024-06-01"
-  ]);
 
   const recentActivity = [
     { date: "2024-06-10", taken: true, time: "8:30 AM", hasPhoto: true },
@@ -35,8 +40,8 @@ const CaretakerDashboard = () => {
 
   const dailyMedication = {
     name: "Daily Medication Set",
-    time: "8:00 AM",
-    status: takenDates.has(format(new Date(), 'yyyy-MM-dd')) ? "completed" : "pending"
+    status: medicationStatusForToday === "taken" ? "completed" :
+      medicationStatusForToday === "missed" ? "missed" : "pending"
   };
 
   const handleSendReminderEmail = () => {
@@ -52,6 +57,114 @@ const CaretakerDashboard = () => {
   const handleViewCalendar = () => {
     setActiveTab("calendar");
   };
+
+  useEffect(() => {
+    const fetchMedicationLogs = async () => {
+      try {
+        const user = await getCurrentUser();
+        const today = new Date();
+        const todayStr = format(today, 'yyyy-MM-dd');
+
+        const medications = await getMedications(user.id);
+        const medicationIds = medications.map((m) => m.id);
+        const logs = await getMedicationLogs(user.id);
+
+        const groupedLogs: Record<string, { taken: number, total: number }> = {};
+        for (let d = new Date(); d >= subDays(new Date(), 29); d.setDate(d.getDate() - 1)) {
+          const dateStr = format(new Date(d), 'yyyy-MM-dd');
+          groupedLogs[dateStr] = { taken: 0, total: medicationIds.length };
+        }
+
+        logs.forEach((log) => {
+          const dateStr = log.date;
+          if (groupedLogs[dateStr] && log.status === "taken") {
+            groupedLogs[dateStr].taken += 1;
+          }
+        });
+
+        const statusMap: Record<string, "taken" | "missed"> = {};
+        const takenSet = new Set<string>();
+
+        for (const [date, { taken, total }] of Object.entries(groupedLogs)) {
+          const status = taken === total ? "taken" : "missed";
+          statusMap[date] = status;
+          if (status === "taken") takenSet.add(date);
+        }
+        setTakenDates(takenSet);
+
+        if (statusMap[todayStr] === "taken") {
+          setMedicationStatusForToday("taken");
+        } else if (today > new Date(`${todayStr}T23:59:59`)) {
+          setMedicationStatusForToday("missed");
+        } else {
+          setMedicationStatusForToday("pending");
+        }
+
+        const dates = Object.keys(statusMap).sort();
+        let takenCount = 0;
+        let missedCount = 0;
+        let streak = 0;
+
+        dates.forEach((date) => {
+          if (statusMap[date] === "taken") takenCount++;
+          else missedCount++;
+        });
+
+        const now = new Date();
+        while (statusMap[format(now, 'yyyy-MM-dd')] === "taken") {
+          streak++;
+          now.setDate(now.getDate() - 1);
+        }
+
+        setAdherenceRate(Math.round((takenCount / dates.length) * 100));
+        setMissedDoses(missedCount);
+        setCurrentStreak(streak);
+        const lastDayOfMonth = endOfMonth(today);
+        const daysLeft = differenceInCalendarDays(lastDayOfMonth, today) + 1;
+
+        setRemainingDays(daysLeft);
+      } catch (error) {
+        console.error("Error in fetchMedicationLogs:", error);
+      }
+    };
+
+    fetchMedicationLogs();
+  }, []);
+
+  useEffect(() => {
+    const fetchTodayStatus = async () => {
+      try {
+        const user = await getCurrentUser();
+        const today = format(new Date(), 'yyyy-MM-dd');
+
+        const meds = await getMedicationsWithLogs(user.id);
+
+        if (!meds || meds.length === 0) {
+          setMedicationStatusForToday("pending");
+          return;
+        }
+
+        const totalMeds = meds.length;
+
+        const takenCount = meds.reduce((count, med) => {
+          const log = med.medication_logs.find((log) => log.date === today && log.status === "taken");
+          return log ? count + 1 : count;
+        }, 0);
+
+        if (takenCount === totalMeds) {
+          setMedicationStatusForToday("taken");
+        } else {
+          const now = new Date();
+          const isPast = now > new Date(`${today}T23:59:59`);
+          setMedicationStatusForToday(isPast ? "missed" : "pending");
+        }
+      } catch (error) {
+        console.error("Error in fetchTodayStatus:", error);
+      }
+    };
+
+    fetchTodayStatus();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -81,8 +194,8 @@ const CaretakerDashboard = () => {
             <div className="text-white/80">Missed This Month</div>
           </div>
           <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-            <div className="text-2xl font-bold">{recentActivity.filter(a => a.taken).length}</div>
-            <div className="text-white/80">Taken This Week</div>
+            <div className="text-2xl font-bold">{Array.from(takenDates).length}</div>
+            <div className="text-white/80">Taken This Month</div>
           </div>
         </div>
       </div>
@@ -110,10 +223,9 @@ const CaretakerDashboard = () => {
                 <div className="flex items-center justify-between p-3 bg-accent/50 rounded-lg">
                   <div>
                     <h4 className="font-medium">{dailyMedication.name}</h4>
-                    <p className="text-sm text-muted-foreground">{dailyMedication.time}</p>
                   </div>
-                  <Badge variant={dailyMedication.status === "pending" ? "destructive" : "secondary"}>
-                    {dailyMedication.status === "pending" ? "Pending" : "Completed"}
+                  <Badge variant={dailyMedication.status === "completed" ? "secondary" : dailyMedication.status === "missed" ? "destructive" :"default"}>
+                    {dailyMedication.status.charAt(0).toUpperCase() + dailyMedication.status.slice(1)}
                   </Badge>
                 </div>
               </CardContent>
@@ -151,7 +263,17 @@ const CaretakerDashboard = () => {
                 </Button>
               </CardContent>
             </Card>
-          </div>
+          </div>          
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Medications
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Medication />
+            </CardContent>
+          </Card>
 
           {/* Adherence Progress */}
           <Card>
@@ -167,15 +289,15 @@ const CaretakerDashboard = () => {
                 <Progress value={adherenceRate} className="h-3" />
                 <div className="grid grid-cols-3 gap-4 text-center text-sm">
                   <div>
-                    <div className="font-medium text-green-600">22 days</div>
+                    <div className="font-medium text-green-600">{Array.from(takenDates).length} days</div>
                     <div className="text-muted-foreground">Taken</div>
                   </div>
                   <div>
-                    <div className="font-medium text-red-600">3 days</div>
+                    <div className="font-medium text-red-600">{missedDoses} days</div>
                     <div className="text-muted-foreground">Missed</div>
                   </div>
                   <div>
-                    <div className="font-medium text-blue-600">5 days</div>
+                    <div className="font-medium text-blue-600">{remainingDays} days</div>
                     <div className="text-muted-foreground">Remaining</div>
                   </div>
                 </div>
@@ -252,7 +374,7 @@ const CaretakerDashboard = () => {
                         const isTaken = takenDates.has(dateStr);
                         const isPast = isBefore(date, startOfDay(new Date()));
                         const isCurrentDay = isToday(date);
-                        
+
                         return (
                           <div className="relative w-full h-full flex items-center justify-center">
                             <span>{date.getDate()}</span>
