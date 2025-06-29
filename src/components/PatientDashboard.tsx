@@ -1,30 +1,25 @@
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { Badge } from "@/components/ui/badge";
 import { Check, Calendar as CalendarIcon, Image, User } from "lucide-react";
 import MedicationTracker from "./MedicationTracker";
-import { format, isToday, isBefore, startOfDay } from "date-fns";
+import { format, isToday, isBefore, startOfDay, startOfMonth, endOfMonth } from "date-fns";
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 const PatientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
+  const [medications, setMedications] = useState<any[]>([]);
+  const [medicationStatusMap, setMedicationStatusMap] = useState<Record<string, "taken" | "missed">>({});
+  const [user, setUser] = useState<any>(null);
+  const [updateCalender, setUpdateCalender] = useState<boolean>(false);
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
   const selectedDateStr = format(selectedDate, 'yyyy-MM-dd');
   const isTodaySelected = isToday(selectedDate);
-  const isSelectedDateTaken = takenDates.has(selectedDateStr);
-
-  const handleMarkTaken = (date: string, imageFile?: File) => {
-    setTakenDates(prev => new Set(prev).add(date));
-    console.log('Medication marked as taken for:', date);
-    if (imageFile) {
-      console.log('Proof image uploaded:', imageFile.name);
-    }
-  };
 
   const getStreakCount = () => {
     let streak = 0;
@@ -57,6 +52,185 @@ const PatientDashboard = () => {
     }
     
     return className;
+  };
+
+  useEffect(() => {
+    const fetchMedications = async () => {
+
+      if (!user) {
+        console.error("User not logged in");
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+
+      const { data: meds, error } = await supabase
+        .from("medications")
+        .select(`
+        id,
+        name,
+        dosage,
+        schedule,
+        medication_logs (
+          status,
+          date
+        )
+      `)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Error fetching medications:", error);
+        return;
+      }
+
+      const result = meds.map((med: any) => {
+        const todayLog = med.medication_logs.find(
+          (log: any) => log.date === today
+        );
+        return {
+          id: med.id,
+          name: med.name,
+          dosage: med.dosage,
+          schedule: med.schedule,
+          status_for_today: todayLog?.status ?? "pending"
+        };
+      });
+
+      setMedications(result);
+    };
+
+    fetchMedications();
+  }, [user]);
+
+  useEffect(() => {
+    const fetchMedicationLogs = async () => {
+      if (!user) return;
+
+      const start = format(startOfMonth(today), 'yyyy-MM-dd');
+      const end = format(endOfMonth(today), 'yyyy-MM-dd');
+
+      const { data: medications, error: medError } = await supabase
+        .from("medications")
+        .select("id")
+        .eq("user_id", user.id);
+
+      if (medError || !medications) {
+        console.error("Error fetching medications:", medError);
+        return;
+      }
+
+      const medicationIds = medications.map((m) => m.id);
+
+      const { data: logs, error: logError } = await supabase
+        .from("medication_logs")
+        .select("date, medication_id, status")
+        .eq("user_id", user.id)
+        .gte("date", start)
+        .lte("date", end);
+
+      if (logError) {
+        console.error("Error fetching logs:", logError);
+        return;
+      }
+
+      const groupedLogs: Record<string, { taken: number, total: number }> = {};
+
+      for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
+        const dateStr = format(d, 'yyyy-MM-dd');
+        groupedLogs[dateStr] = { taken: 0, total: medicationIds.length };
+      }
+
+      logs.forEach(log => {
+        const dateStr = log.date;
+        if (log.status === "taken") {
+          groupedLogs[dateStr].taken += 1;
+        }
+      });
+
+      const statusMap: Record<string, "taken" | "missed"> = {};
+      for (const [date, { taken, total }] of Object.entries(groupedLogs)) {
+        statusMap[date] = taken === total ? "taken" : "missed";
+      }
+
+      setMedicationStatusMap(statusMap);
+    };
+
+    fetchMedicationLogs();
+  }, [user, updateCalender]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setUser(user);
+    };
+    fetchUser();
+  }, []);
+
+  const fetchMedicationsForDate = async (dateStr: string) => {
+
+    const { data: meds, error } = await supabase
+      .from("medications")
+      .select(`
+      id,
+      name,
+      dosage,
+      schedule,
+      medication_logs (
+        status,
+        date
+      )
+    `)
+      .eq("user_id", user?.id);
+
+    if (error) {
+      console.error("Error fetching medications:", error);
+      return;
+    }
+
+    const isPast = new Date(dateStr) < startOfDay(new Date());
+    const isToday = format(new Date(), 'yyyy-MM-dd') === dateStr;
+
+    const result = meds.map((med: any) => {
+      const log = med.medication_logs.find((l: any) => l.date === dateStr);
+      const status = log?.status ?? (isPast && !isToday ? "missed" : "pending");
+      return {
+        id: med.id,
+        name: med.name,
+        dosage: med.dosage,
+        schedule: med.schedule,
+        status_for_today: status
+      };
+    });
+
+    setMedications(result);
+  };
+
+  const handleMarkMedicationTaken = async (
+    medicationId: string,
+    date: string,
+    imageFile?: File
+  ) => {
+
+    const { error } = await supabase.from("medication_logs").upsert({
+      medication_id: medicationId,
+      user_id: user?.id,
+      date,
+      status: "taken"
+    });
+
+    if (error) {
+      console.error("Error updating medication log:", error);
+      return;
+    }
+
+    setMedications((prev) =>
+      prev.map((med) =>
+        med.id === medicationId ? { ...med, status_for_today: "taken" } : med
+      )
+    );
+    setUpdateCalender(!updateCalender);
+
+    console.log("Marked taken:", medicationId, imageFile?.name);
   };
 
   return (
@@ -100,10 +274,10 @@ const PatientDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <MedicationTracker 
+              <MedicationTracker
                 date={selectedDateStr}
-                isTaken={isSelectedDateTaken}
-                onMarkTaken={handleMarkTaken}
+                medications={medications}
+                onMarkTaken={handleMarkMedicationTaken}
                 isToday={isTodaySelected}
               />
             </CardContent>
@@ -120,7 +294,11 @@ const PatientDashboard = () => {
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={(date) => date && setSelectedDate(date)}
+                onSelect={(date) => {
+                  if (!date) return;
+                  setSelectedDate(date);
+                  fetchMedicationsForDate(format(date, 'yyyy-MM-dd'));
+                }}
                 className="w-full"
                 modifiersClassNames={{
                   selected: "bg-blue-600 text-white hover:bg-blue-700",
@@ -128,20 +306,19 @@ const PatientDashboard = () => {
                 components={{
                   DayContent: ({ date }) => {
                     const dateStr = format(date, 'yyyy-MM-dd');
-                    const isTaken = takenDates.has(dateStr);
-                    const isPast = isBefore(date, startOfDay(today));
+                    const status = medicationStatusMap[dateStr];
                     const isCurrentDay = isToday(date);
-                    
+
                     return (
                       <div className="relative w-full h-full flex items-center justify-center">
                         <span>{date.getDate()}</span>
-                        {isTaken && (
+                        {status === "taken" && (
                           <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center">
                             <Check className="w-2 h-2 text-white" />
                           </div>
                         )}
-                        {!isTaken && isPast && !isCurrentDay && (
-                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full"></div>
+                        {status !== "taken" && isBefore(date, startOfDay(today)) && (
+                          <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full" />
                         )}
                       </div>
                     );
