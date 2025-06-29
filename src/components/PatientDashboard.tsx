@@ -23,6 +23,7 @@ interface MedicationDisplay {
 }
 
 const PatientDashboard = () => {
+  
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
   const [medications, setMedications] = useState<MedicationDisplay[]>([]);

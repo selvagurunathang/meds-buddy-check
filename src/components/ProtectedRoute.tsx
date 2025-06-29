@@ -4,6 +4,7 @@ import { Session } from "@supabase/supabase-js";
 import { checkSession, onAuthStateChange } from "../lib/supabaseService";
 
 const ProtectedRoute = () => {
+  
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 

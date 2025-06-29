@@ -4,6 +4,7 @@ const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{6,}$/;
 
 export function useEmailInput(initialValue = '') {
+
   const [value, setValue] = useState(initialValue);
   const [isValid, setIsValid] = useState(true);
 
@@ -17,6 +18,7 @@ export function useEmailInput(initialValue = '') {
 }
 
 export function usePasswordInput(initialValue = '') {
+  
   const [value, setValue] = useState(initialValue);
   const [isValid, setIsValid] = useState(true);
 

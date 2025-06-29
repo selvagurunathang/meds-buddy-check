@@ -8,6 +8,7 @@ import { updateUserPassword } from '../lib/supabaseService';
 
 export default function UpdatePassword() {
   const passwordInput = usePasswordInput();
+  
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 

@@ -9,8 +9,10 @@ import { Link } from 'react-router-dom';
 type AuthType = 'LOGIN' | 'SIGNUP';
 
 export default function AuthForm() {
+  
   const emailInput = useEmailInput();
   const passwordInput = usePasswordInput();
+
   const [authType, setAuthType] = useState<AuthType>('LOGIN');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);

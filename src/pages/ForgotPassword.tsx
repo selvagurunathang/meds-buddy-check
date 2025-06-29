@@ -8,7 +8,9 @@ import { resetPassword } from '../lib/supabaseService';
 const updatePasswordPage = import.meta.env.VITE_UPDATE_PASSWORD_PAGE;
 
 export default function ForgotPassword() {
+    
     const emailInput = useEmailInput();
+
     const [message, setMessage] = useState('');
     const [messageType, setMessageType] = useState<'error' | 'success' | ''>('');
     const [loading, setLoading] = useState(false);

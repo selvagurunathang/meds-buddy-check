@@ -26,8 +26,10 @@ const MedicationTracker = ({
   onMarkTaken,
   isToday
 }: MedicationTrackerProps) => {
+
   const [imageMap, setImageMap] = useState<Record<string, File | null>>({});
   const [previewMap, setPreviewMap] = useState<Record<string, string | null>>({});
+  
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const handleImageSelect = useCallback(

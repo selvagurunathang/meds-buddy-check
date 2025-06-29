@@ -21,6 +21,7 @@ const SCHEDULE_OPTIONS = [
 ];
 
 export default function MedicationForm({ onSuccess }: { onSuccess: () => void }) {
+    
     const [name, setName] = useState('');
     const [dosage, setDosage] = useState('');
     const [schedule, setSchedule] = useState('');

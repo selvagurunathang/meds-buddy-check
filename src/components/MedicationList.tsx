@@ -139,6 +139,7 @@ const MedicationCard = memo(function MedicationCard({
 });
 
 export default function MedicationList() {
+    
     const [medications, setMedications] = useState<Medication[]>([]);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editedValues, setEditedValues] = useState<{

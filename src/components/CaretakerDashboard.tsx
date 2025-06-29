@@ -17,6 +17,7 @@ import {
 } from "@/lib/supabaseService";
 
 const CaretakerDashboard = () => {
+  
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [medicationStatusForToday, setMedicationStatusForToday] = useState<"taken" | "missed" | "pending">("pending");
