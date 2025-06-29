@@ -1,16 +1,17 @@
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
-import { Badge } from "@/components/ui/badge";
 import { Check, Calendar as CalendarIcon, Image, User } from "lucide-react";
 import MedicationTracker from "./MedicationTracker";
 import { format, isToday, isBefore, startOfDay } from "date-fns";
+import { useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 const PatientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
+  const [medications, setMedications] = useState<any[]>([]);
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -59,6 +60,83 @@ const PatientDashboard = () => {
     return className;
   };
 
+  useEffect(() => {
+    const fetchMedications = async () => {
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error("User not logged in");
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+
+      const { data: meds, error } = await supabase
+        .from("medications")
+        .select(`
+        id,
+        name,
+        dosage,
+        schedule,
+        medication_logs (
+          status,
+          date
+        )
+      `)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Error fetching medications:", error);
+        return;
+      }
+
+      const result = meds.map((med: any) => {
+        const todayLog = med.medication_logs.find(
+          (log: any) => log.date === today
+        );
+        return {
+          id: med.id,
+          name: med.name,
+          dosage: med.dosage,
+          schedule: med.schedule,
+          status_for_today: todayLog?.status ?? "pending"
+        };
+      });
+
+      setMedications(result);
+    };
+
+    fetchMedications();
+  }, []);
+
+  const handleMarkMedicationTaken = async (
+    medicationId: string,
+    date: string,
+    imageFile?: File
+  ) => {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await supabase.from("medication_logs").upsert({
+      medication_id: medicationId,
+      user_id: user?.id,
+      date,
+      status: "taken"
+    });
+
+    if (error) {
+      console.error("Error updating medication log:", error);
+      return;
+    }
+
+    setMedications((prev) =>
+      prev.map((med) =>
+        med.id === medicationId ? { ...med, status_for_today: "taken" } : med
+      )
+    );
+
+    console.log("Marked taken:", medicationId, imageFile?.name);
+  };
+
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
@@ -100,10 +178,10 @@ const PatientDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <MedicationTracker 
+              <MedicationTracker
                 date={selectedDateStr}
-                isTaken={isSelectedDateTaken}
-                onMarkTaken={handleMarkTaken}
+                medications={medications}
+                onMarkTaken={handleMarkMedicationTaken}
                 isToday={isTodaySelected}
               />
             </CardContent>
