@@ -75,3 +75,37 @@ Deploy to Vercel/Netlify
 - State management approach
 - Performance considerations (unnecessary re-renders)
 - Security awareness (input sanitization)
+
+## ⚙️ Project Setup Instructions
+
+### 📦 Prerequisites
+Make sure you have the following installed:
+
+- **Node.js v19.x**
+  node -v
+- **npm v9.x**
+  npm -v
+
+### 📁 Clone & Install
+1. Clone the repository:
+   git clone <your-repo-url>
+   cd <your-project-directory>
+
+2. Install dependencies:
+   npm install
+
+### 🔐 Environment Variables
+
+Create a `.env` file in the root of the project and add the following:
+
+VITE_SUPABASE_URL=https://mbtdvrtwzwmagsuqoely.supabase.co
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1idGR2cnR3endtYWdzdXFvZWx5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTEwODUzMTIsImV4cCI6MjA2NjY2MTMxMn0.-MAWL2bmKKUvBNf9iffYOaqzEyFKzqEgA9Dc3VOFrzY
+VITE_UPDATE_PASSWORD_PAGE=http://localhost:8080/updatePassword
+
+> 🔒 **Important:** Make sure to add `.env` to your `.gitignore` file to avoid committing sensitive information.
+
+### 🧑‍💻 Start Development Server
+npm run dev
+
+### 🧪 Run Tests (Vitest)
+npm run test

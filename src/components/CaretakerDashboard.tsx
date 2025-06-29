@@ -9,7 +9,12 @@ import { Users, Bell, Calendar as CalendarIcon, Mail, AlertTriangle, Check, Cloc
 import NotificationSettings from "./NotificationSettings";
 import { format, subDays, isToday, isBefore, startOfDay, endOfMonth, differenceInCalendarDays } from "date-fns";
 import Medication from "./Medication";
-import { supabase } from "@/lib/supabaseClient";
+import {
+  getCurrentUser,
+  getMedicationLogs,
+  getMedications,
+  getMedicationsWithLogs,
+} from "@/lib/supabaseService";
 
 const CaretakerDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -54,91 +59,72 @@ const CaretakerDashboard = () => {
 
   useEffect(() => {
     const fetchMedicationLogs = async () => {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        console.error("No logged in user found");
-        return;
-      }
+      try {
+        const user = await getCurrentUser();
+        const today = new Date();
+        const todayStr = format(today, 'yyyy-MM-dd');
 
-      const today = new Date();
-      const todayStr = format(today, 'yyyy-MM-dd');
+        const medications = await getMedications(user.id);
+        const medicationIds = medications.map((m) => m.id);
+        const logs = await getMedicationLogs(user.id);
 
-      const { data: medications, error: medError } = await supabase
-        .from("medications")
-        .select("id")
-        .eq("user_id", user.id);
-
-      if (medError || !medications) {
-        console.error("Error fetching medications:", medError);
-        return;
-      }
-
-      const medicationIds = medications.map((m) => m.id);
-
-      const { data: logs, error: logError } = await supabase
-        .from("medication_logs")
-        .select("date, medication_id, status")
-        .eq("user_id", user.id);
-
-      if (logError) {
-        console.error("Error fetching logs:", logError);
-        return;
-      }
-
-      const groupedLogs: Record<string, { taken: number, total: number }> = {};
-      for (let d = new Date(); d >= subDays(new Date(), 29); d.setDate(d.getDate() - 1)) {
-        const dateStr = format(new Date(d), 'yyyy-MM-dd');
-        groupedLogs[dateStr] = { taken: 0, total: medicationIds.length };
-      }
-
-      logs.forEach((log) => {
-        const dateStr = log.date;
-        if (groupedLogs[dateStr] && log.status === "taken") {
-          groupedLogs[dateStr].taken += 1;
+        const groupedLogs: Record<string, { taken: number, total: number }> = {};
+        for (let d = new Date(); d >= subDays(new Date(), 29); d.setDate(d.getDate() - 1)) {
+          const dateStr = format(new Date(d), 'yyyy-MM-dd');
+          groupedLogs[dateStr] = { taken: 0, total: medicationIds.length };
         }
-      });
 
-      const statusMap: Record<string, "taken" | "missed"> = {};
-      const takenSet = new Set<string>();
+        logs.forEach((log) => {
+          const dateStr = log.date;
+          if (groupedLogs[dateStr] && log.status === "taken") {
+            groupedLogs[dateStr].taken += 1;
+          }
+        });
 
-      for (const [date, { taken, total }] of Object.entries(groupedLogs)) {
-        const status = taken === total ? "taken" : "missed";
-        statusMap[date] = status;
-        if (status === "taken") takenSet.add(date);
+        const statusMap: Record<string, "taken" | "missed"> = {};
+        const takenSet = new Set<string>();
+
+        for (const [date, { taken, total }] of Object.entries(groupedLogs)) {
+          const status = taken === total ? "taken" : "missed";
+          statusMap[date] = status;
+          if (status === "taken") takenSet.add(date);
+        }
+        setTakenDates(takenSet);
+
+        if (statusMap[todayStr] === "taken") {
+          setMedicationStatusForToday("taken");
+        } else if (today > new Date(`${todayStr}T23:59:59`)) {
+          setMedicationStatusForToday("missed");
+        } else {
+          setMedicationStatusForToday("pending");
+        }
+
+        const dates = Object.keys(statusMap).sort();
+        let takenCount = 0;
+        let missedCount = 0;
+        let streak = 0;
+
+        dates.forEach((date) => {
+          if (statusMap[date] === "taken") takenCount++;
+          else missedCount++;
+        });
+
+        const now = new Date();
+        while (statusMap[format(now, 'yyyy-MM-dd')] === "taken") {
+          streak++;
+          now.setDate(now.getDate() - 1);
+        }
+
+        setAdherenceRate(Math.round((takenCount / dates.length) * 100));
+        setMissedDoses(missedCount);
+        setCurrentStreak(streak);
+        const lastDayOfMonth = endOfMonth(today);
+        const daysLeft = differenceInCalendarDays(lastDayOfMonth, today) + 1;
+
+        setRemainingDays(daysLeft);
+      } catch (error) {
+        console.error("Error in fetchMedicationLogs:", error);
       }
-      setTakenDates(takenSet);
-
-      if (statusMap[todayStr] === "taken") {
-        setMedicationStatusForToday("taken");
-      } else if (today > new Date(`${todayStr}T23:59:59`)) {
-        setMedicationStatusForToday("missed");
-      } else {
-        setMedicationStatusForToday("pending");
-      }
-
-      const dates = Object.keys(statusMap).sort();
-      let takenCount = 0;
-      let missedCount = 0;
-      let streak = 0;
-
-      dates.forEach((date) => {
-        if (statusMap[date] === "taken") takenCount++;
-        else missedCount++;
-      });
-
-      const now = new Date();
-      while (statusMap[format(now, 'yyyy-MM-dd')] === "taken") {
-        streak++;
-        now.setDate(now.getDate() - 1);
-      }
-
-      setAdherenceRate(Math.round((takenCount / dates.length) * 100));
-      setMissedDoses(missedCount);
-      setCurrentStreak(streak);
-      const lastDayOfMonth = endOfMonth(today);
-      const daysLeft = differenceInCalendarDays(lastDayOfMonth, today) + 1;
-
-      setRemainingDays(daysLeft);
     };
 
     fetchMedicationLogs();
@@ -146,51 +132,33 @@ const CaretakerDashboard = () => {
 
   useEffect(() => {
     const fetchTodayStatus = async () => {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        console.error("No logged in user found");
-        return;
-      }
+      try {
+        const user = await getCurrentUser();
+        const today = format(new Date(), 'yyyy-MM-dd');
 
-      const today = format(new Date(), 'yyyy-MM-dd');
+        const meds = await getMedicationsWithLogs(user.id);
 
-      const { data: meds, error } = await supabase
-        .from("medications")
-        .select(`
-        id,
-        name,
-        dosage,
-        schedule,
-        medication_logs (
-          status,
-          date
-        )
-      `)
-        .eq("user_id", user.id);
+        if (!meds || meds.length === 0) {
+          setMedicationStatusForToday("pending");
+          return;
+        }
 
-      if (error) {
-        console.error("Error fetching medications:", error);
-        return;
-      }
+        const totalMeds = meds.length;
 
-      if (!meds || meds.length === 0) {
-        setMedicationStatusForToday("pending");
-        return;
-      }
+        const takenCount = meds.reduce((count, med) => {
+          const log = med.medication_logs.find((log) => log.date === today && log.status === "taken");
+          return log ? count + 1 : count;
+        }, 0);
 
-      const totalMeds = meds.length;
-
-      const takenCount = meds.reduce((count, med) => {
-        const log = med.medication_logs.find((log: any) => log.date === today && log.status === "taken");
-        return log ? count + 1 : count;
-      }, 0);
-
-      if (takenCount === totalMeds) {
-        setMedicationStatusForToday("taken");
-      } else {
-        const now = new Date();
-        const isPast = now > new Date(`${today}T23:59:59`);
-        setMedicationStatusForToday(isPast ? "missed" : "pending");
+        if (takenCount === totalMeds) {
+          setMedicationStatusForToday("taken");
+        } else {
+          const now = new Date();
+          const isPast = now > new Date(`${today}T23:59:59`);
+          setMedicationStatusForToday(isPast ? "missed" : "pending");
+        }
+      } catch (error) {
+        console.error("Error in fetchTodayStatus:", error);
       }
     };
 

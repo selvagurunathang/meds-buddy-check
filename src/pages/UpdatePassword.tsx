@@ -1,10 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
 import Header from '@/components/Header';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { usePasswordInput } from '../hooks/useFormInput';
+import { updateUserPassword } from '../lib/supabaseService';
 
 export default function UpdatePassword() {
   const passwordInput = usePasswordInput();
@@ -22,16 +22,13 @@ export default function UpdatePassword() {
     setLoading(true);
     setMessage('');
 
-    const { error } = await supabase.auth.updateUser({
-      password: trimmedPassword,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setMessage(error.message);
-    } else {
+    try {
+      await updateUserPassword(trimmedPassword);
       setMessage('Password updated successfully!');
+    } catch (error) {
+      setMessage(error.message || 'Failed to update password.');
+    } finally {
+      setLoading(false);
     }
   }, [passwordInput]);
 
@@ -65,7 +62,7 @@ export default function UpdatePassword() {
         <Button
           className={`w-full mt-6 text-white py-3 text-lg ${
             loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-          }`}
+            }`}
           onClick={handleUpdate}
           disabled={loading}
         >

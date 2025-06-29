@@ -1,9 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
-import { supabase } from '../lib/supabaseClient';
 import Header from '@/components/Header';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useEmailInput } from '../hooks/useFormInput';
+import { resetPassword } from '../lib/supabaseService';
 
 const updatePasswordPage = import.meta.env.VITE_UPDATE_PASSWORD_PAGE;
 
@@ -27,9 +27,7 @@ export default function ForgotPassword() {
         setMessageType('');
 
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-                redirectTo: updatePasswordPage,
-            });
+            const { error } = await resetPassword(trimmedEmail, updatePasswordPage);
 
             if (error) {
                 setMessage(error.message);
@@ -68,7 +66,7 @@ export default function ForgotPassword() {
                 <Button
                     className={`w-full mt-6 text-white py-3 text-lg ${
                         loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
+                        }`}
                     onClick={handleReset}
                     disabled={loading}
                 >
@@ -79,7 +77,7 @@ export default function ForgotPassword() {
                     <p
                         className={`mt-4 text-center text-sm ${
                             messageType === 'error' ? 'text-red-600' : 'text-green-600'
-                        }`}
+                            }`}
                     >
                         {message}
                     </p>

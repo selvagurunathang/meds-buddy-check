@@ -1,14 +1,14 @@
-import { useState, useCallback, useMemo } from 'react'
-import { supabase } from '../lib/supabaseClient'
-import { Input } from './ui/input'
-import { Button } from './ui/button'
+import { useState, useCallback, useMemo } from 'react';
+import { Input } from './ui/input';
+import { Button } from './ui/button';
 import {
     Select,
     SelectTrigger,
     SelectValue,
     SelectContent,
     SelectItem,
-} from './ui/select'
+} from './ui/select';
+import { getCurrentUser, addMedication } from '../lib/supabaseService';
 
 const SCHEDULE_OPTIONS = [
     { label: 'Once daily', value: 'Once daily' },
@@ -18,14 +18,14 @@ const SCHEDULE_OPTIONS = [
     { label: 'Every 8 hours', value: 'Every 8 hours' },
     { label: 'Before sleep', value: 'Before sleep' },
     { label: 'As needed', value: 'As needed' },
-]
+];
 
 export default function MedicationForm({ onSuccess }: { onSuccess: () => void }) {
-    const [name, setName] = useState('')
-    const [dosage, setDosage] = useState('')
-    const [schedule, setSchedule] = useState('')
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState<string | null>(null)
+    const [name, setName] = useState('');
+    const [dosage, setDosage] = useState('');
+    const [schedule, setSchedule] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const scheduleSelectItems = useMemo(
         () =>
@@ -35,54 +35,42 @@ export default function MedicationForm({ onSuccess }: { onSuccess: () => void })
                 </SelectItem>
             )),
         []
-    )
+    );
 
     const handleDosageChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value
+        const value = e.target.value;
         if (/^\d*$/.test(value)) {
-            setDosage(value)
+            setDosage(value);
         }
-    }, [])
+    }, []);
 
     const handleAdd = useCallback(async () => {
-        if (!name.trim()) return setError('Please enter medication name')
-        if (!dosage || isNaN(Number(dosage))) return setError('Dosage must be a valid number')
-        if (!schedule) return setError('Please select a schedule')
+        if (!name.trim()) return setError('Please enter medication name');
+        if (!dosage || isNaN(Number(dosage))) return setError('Dosage must be a valid number');
+        if (!schedule) return setError('Please select a schedule');
 
-        setLoading(true)
-        setError(null)
+        setLoading(true);
+        setError(null);
 
-        const {
-            data: { user },
-            error: userError,
-        } = await supabase.auth.getUser()
-
-        if (userError || !user) {
-            setError('Authentication error. Please login again.')
-            setLoading(false)
-            return
-        }
-
-        const { error: insertError } = await supabase.from('medications').insert([
-            {
+        try {
+            const user = await getCurrentUser();
+            await addMedication({
                 name: name.trim(),
                 dosage: `${dosage} mg`,
                 schedule,
-                user_id: user.id,
-            },
-        ])
+                userId: user.id,
+            });
 
-        if (insertError) {
-            setError('Failed to add medication. Try again.')
-        } else {
-            setName('')
-            setDosage('')
-            setSchedule('')
-            onSuccess()
+            setName('');
+            setDosage('');
+            setSchedule('');
+            onSuccess();
+        } catch (err) {
+            setError(err.message || 'Something went wrong.');
         }
 
-        setLoading(false)
-    }, [name, dosage, schedule, onSuccess])
+        setLoading(false);
+    }, [name, dosage, schedule, onSuccess]);
 
     return (
         <div className="mt-6 p-4 space-y-3 border rounded-md text-center max-w-md mx-auto">
@@ -120,5 +108,5 @@ export default function MedicationForm({ onSuccess }: { onSuccess: () => void })
                 {loading ? 'Adding...' : 'Add Medication'}
             </Button>
         </div>
-    )
+    );
 }
