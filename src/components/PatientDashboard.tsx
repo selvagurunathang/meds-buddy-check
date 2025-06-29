@@ -13,6 +13,8 @@ const PatientDashboard = () => {
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
   const [medications, setMedications] = useState<any[]>([]);
   const [medicationStatusMap, setMedicationStatusMap] = useState<Record<string, "taken" | "missed">>({});
+  const [user, setUser] = useState<any>(null);
+  const [updateCalender, setUpdateCalender] = useState<boolean>(false);
 
   const today = new Date();
   const todayStr = format(today, 'yyyy-MM-dd');
@@ -55,8 +57,7 @@ const PatientDashboard = () => {
   useEffect(() => {
     const fetchMedications = async () => {
 
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
+      if (!user) {
         console.error("User not logged in");
         return;
       }
@@ -99,11 +100,10 @@ const PatientDashboard = () => {
     };
 
     fetchMedications();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const fetchMedicationLogs = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const start = format(startOfMonth(today), 'yyyy-MM-dd');
@@ -156,10 +156,17 @@ const PatientDashboard = () => {
     };
 
     fetchMedicationLogs();
-  }, [medications]);
+  }, [user, updateCalender]);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setUser(user);
+    };
+    fetchUser();
+  }, []);
 
   const fetchMedicationsForDate = async (dateStr: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
 
     const { data: meds, error } = await supabase
       .from("medications")
@@ -195,8 +202,6 @@ const PatientDashboard = () => {
       };
     });
 
-    console.log("debug result", result);
-
     setMedications(result);
   };
 
@@ -205,7 +210,6 @@ const PatientDashboard = () => {
     date: string,
     imageFile?: File
   ) => {
-    const { data: { user } } = await supabase.auth.getUser();
 
     const { error } = await supabase.from("medication_logs").upsert({
       medication_id: medicationId,
@@ -224,6 +228,7 @@ const PatientDashboard = () => {
         med.id === medicationId ? { ...med, status_for_today: "taken" } : med
       )
     );
+    setUpdateCalender(!updateCalender);
 
     console.log("Marked taken:", medicationId, imageFile?.name);
   };
