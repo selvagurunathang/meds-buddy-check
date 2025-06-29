@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,12 @@ import { Users, Bell, Calendar as CalendarIcon, Mail, AlertTriangle, Check, Cloc
 import NotificationSettings from "./NotificationSettings";
 import { format, subDays, isToday, isBefore, startOfDay } from "date-fns";
 import Medication from "./Medication";
+import { supabase } from "@/lib/supabaseClient";
 
 const CaretakerDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [medicationStatusForToday, setMedicationStatusForToday] = useState<"taken" | "missed" | "pending">("pending");
 
   // Mock data for demonstration
   const patientName = "Eleanor Thompson";
@@ -36,8 +38,8 @@ const CaretakerDashboard = () => {
 
   const dailyMedication = {
     name: "Daily Medication Set",
-    time: "8:00 AM",
-    status: takenDates.has(format(new Date(), 'yyyy-MM-dd')) ? "completed" : "pending"
+    status: medicationStatusForToday === "taken" ? "completed" :
+      medicationStatusForToday === "missed" ? "missed" : "pending"
   };
 
   const handleSendReminderEmail = () => {
@@ -53,6 +55,59 @@ const CaretakerDashboard = () => {
   const handleViewCalendar = () => {
     setActiveTab("calendar");
   };
+
+  useEffect(() => {
+    const fetchTodayStatus = async () => {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.error("No logged in user found");
+        return;
+      }
+
+      const today = format(new Date(), 'yyyy-MM-dd');
+
+      const { data: meds, error } = await supabase
+        .from("medications")
+        .select(`
+        id,
+        name,
+        dosage,
+        schedule,
+        medication_logs (
+          status,
+          date
+        )
+      `)
+        .eq("user_id", user.id);
+
+      if (error) {
+        console.error("Error fetching medications:", error);
+        return;
+      }
+
+      if (!meds || meds.length === 0) {
+        setMedicationStatusForToday("pending");
+        return;
+      }
+
+      const totalMeds = meds.length;
+
+      const takenCount = meds.reduce((count, med) => {
+        const log = med.medication_logs.find((log: any) => log.date === today && log.status === "taken");
+        return log ? count + 1 : count;
+      }, 0);
+
+      if (takenCount === totalMeds) {
+        setMedicationStatusForToday("taken");
+      } else {
+        const now = new Date();
+        const isPast = now > new Date(`${today}T23:59:59`);
+        setMedicationStatusForToday(isPast ? "missed" : "pending");
+      }
+    };
+
+    fetchTodayStatus();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -111,10 +166,9 @@ const CaretakerDashboard = () => {
                 <div className="flex items-center justify-between p-3 bg-accent/50 rounded-lg">
                   <div>
                     <h4 className="font-medium">{dailyMedication.name}</h4>
-                    <p className="text-sm text-muted-foreground">{dailyMedication.time}</p>
                   </div>
-                  <Badge variant={dailyMedication.status === "pending" ? "destructive" : "secondary"}>
-                    {dailyMedication.status === "pending" ? "Pending" : "Completed"}
+                  <Badge variant={dailyMedication.status === "completed" ? "secondary" : dailyMedication.status === "missed" ? "destructive" :"default"}>
+                    {dailyMedication.status.charAt(0).toUpperCase() + dailyMedication.status.slice(1)}
                   </Badge>
                 </div>
               </CardContent>
