@@ -65,7 +65,7 @@ export default function MedicationForm({ onSuccess }: { onSuccess: () => void })
             setDosage('');
             setSchedule('');
             onSuccess();
-        } catch (err: any) {
+        } catch (err) {
             setError(err.message || 'Something went wrong.');
         }
 

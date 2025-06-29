@@ -146,7 +146,7 @@ const CaretakerDashboard = () => {
         const totalMeds = meds.length;
 
         const takenCount = meds.reduce((count, med) => {
-          const log = med.medication_logs.find((log: any) => log.date === today && log.status === "taken");
+          const log = med.medication_logs.find((log) => log.date === today && log.status === "taken");
           return log ? count + 1 : count;
         }, 0);
 

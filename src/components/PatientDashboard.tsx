@@ -14,12 +14,20 @@ import {
   markMedicationTaken
 } from "@/lib/supabaseService";
 
+interface MedicationDisplay {
+  id: string;
+  name: string;
+  dosage: string;
+  schedule: string;
+  status_for_today: "taken" | "missed" | "pending";
+}
+
 const PatientDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [takenDates, setTakenDates] = useState<Set<string>>(new Set());
-  const [medications, setMedications] = useState<any[]>([]);
+  const [medications, setMedications] = useState<MedicationDisplay[]>([]);
   const [medicationStatusMap, setMedicationStatusMap] = useState<Record<string, "taken" | "missed">>({});
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState(null);
   const [updateCalender, setUpdateCalender] = useState<boolean>(false);
 
   const today = new Date();
@@ -68,8 +76,8 @@ const PatientDashboard = () => {
         const meds = await getMedicationsWithLogs(user.id);
         const today = format(new Date(), 'yyyy-MM-dd');
 
-        const result = meds.map((med: any) => {
-          const todayLog = med.medication_logs.find((log: any) => log.date === today);
+        const result = meds.map((med) => {
+          const todayLog = med.medication_logs.find((log) => log.date === today);
           return {
             id: med.id,
             name: med.name,
@@ -153,8 +161,8 @@ const PatientDashboard = () => {
       const isPast = new Date(dateStr) < startOfDay(new Date());
       const isToday = format(new Date(), 'yyyy-MM-dd') === dateStr;
 
-      const result = meds.map((med: any) => {
-        const log = med.medication_logs.find((l: any) => l.date === dateStr);
+      const result = meds.map((med) => {
+        const log = med.medication_logs.find((l) => l.date === dateStr);
         const status = log?.status ?? (isPast && !isToday ? "missed" : "pending");
         return {
           id: med.id,

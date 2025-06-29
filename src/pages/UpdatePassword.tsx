@@ -25,7 +25,7 @@ export default function UpdatePassword() {
     try {
       await updateUserPassword(trimmedPassword);
       setMessage('Password updated successfully!');
-    } catch (error: any) {
+    } catch (error) {
       setMessage(error.message || 'Failed to update password.');
     } finally {
       setLoading(false);
