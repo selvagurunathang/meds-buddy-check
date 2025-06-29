@@ -103,60 +103,66 @@ const PatientDashboard = () => {
   }, [user]);
 
   useEffect(() => {
-    const fetchMedicationLogs = async () => {
-      if (!user) return;
+  const fetchMedicationLogs = async () => {
+    if (!user) return;
 
-      const start = format(startOfMonth(today), 'yyyy-MM-dd');
-      const end = format(endOfMonth(today), 'yyyy-MM-dd');
+    const start = format(startOfMonth(today), 'yyyy-MM-dd');
+    const end = format(endOfMonth(today), 'yyyy-MM-dd');
 
-      const { data: medications, error: medError } = await supabase
-        .from("medications")
-        .select("id")
-        .eq("user_id", user.id);
+    const { data: medications, error: medError } = await supabase
+      .from("medications")
+      .select("id")
+      .eq("user_id", user.id);
 
-      if (medError || !medications) {
-        console.error("Error fetching medications:", medError);
-        return;
+    if (medError || !medications) {
+      console.error("Error fetching medications:", medError);
+      return;
+    }
+
+    const medicationIds = medications.map((m) => m.id);
+
+    const { data: logs, error: logError } = await supabase
+      .from("medication_logs")
+      .select("date, medication_id, status")
+      .eq("user_id", user.id)
+      .gte("date", start)
+      .lte("date", end);
+
+    if (logError) {
+      console.error("Error fetching logs:", logError);
+      return;
+    }
+
+    const groupedLogs: Record<string, { taken: number, total: number }> = {};
+
+    for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
+      const dateStr = format(d, 'yyyy-MM-dd');
+      groupedLogs[dateStr] = { taken: 0, total: medicationIds.length };
+    }
+
+    logs.forEach(log => {
+      const dateStr = log.date;
+      if (log.status === "taken") {
+        groupedLogs[dateStr].taken += 1;
       }
+    });
 
-      const medicationIds = medications.map((m) => m.id);
+    const statusMap: Record<string, "taken" | "missed"> = {};
+    const takenSet = new Set<string>();
 
-      const { data: logs, error: logError } = await supabase
-        .from("medication_logs")
-        .select("date, medication_id, status")
-        .eq("user_id", user.id)
-        .gte("date", start)
-        .lte("date", end);
-
-      if (logError) {
-        console.error("Error fetching logs:", logError);
-        return;
+    for (const [date, { taken, total }] of Object.entries(groupedLogs)) {
+      statusMap[date] = taken === total ? "taken" : "missed";
+      if (taken === total) {
+        takenSet.add(date);
       }
+    }
 
-      const groupedLogs: Record<string, { taken: number, total: number }> = {};
+    setMedicationStatusMap(statusMap);
+    setTakenDates(takenSet);
+  };
 
-      for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
-        const dateStr = format(d, 'yyyy-MM-dd');
-        groupedLogs[dateStr] = { taken: 0, total: medicationIds.length };
-      }
-
-      logs.forEach(log => {
-        const dateStr = log.date;
-        if (log.status === "taken") {
-          groupedLogs[dateStr].taken += 1;
-        }
-      });
-
-      const statusMap: Record<string, "taken" | "missed"> = {};
-      for (const [date, { taken, total }] of Object.entries(groupedLogs)) {
-        statusMap[date] = taken === total ? "taken" : "missed";
-      }
-
-      setMedicationStatusMap(statusMap);
-    };
-
-    fetchMedicationLogs();
-  }, [user, updateCalender]);
+  fetchMedicationLogs();
+}, [user, updateCalender]);
 
   useEffect(() => {
     const fetchUser = async () => {
